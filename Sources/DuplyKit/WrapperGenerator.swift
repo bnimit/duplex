@@ -29,7 +29,9 @@ public struct WrapperGenerator {
 
         // Locate this slug's existing wrapper (if any) — replaced only after the new build succeeds.
         let oldWrapper = ((try? fm.contentsOfDirectory(at: outputDir, includingPropertiesForKeys: nil)) ?? [])
-            .first { $0.pathExtension == "app" && wrapperSlug(of: $0) == spec.slug }
+            .first { $0.pathExtension == "app"
+                && !$0.lastPathComponent.hasPrefix(".")
+                && wrapperSlug(of: $0) == spec.slug }
 
         // Never overwrite a bundle that isn't this instance's wrapper (a real app, or another instance).
         let wrapper = outputDir.appendingPathComponent("\(spec.name).app")

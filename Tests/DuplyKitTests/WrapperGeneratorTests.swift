@@ -108,4 +108,21 @@ final class WrapperGeneratorTests: XCTestCase {
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path).filter { $0.hasPrefix(".duply-staging") }
         XCTAssertEqual(leftovers, [])
     }
+
+    func testStaleStagingLeftoverDoesNotBreakGenerate() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        let spec = try makeSpec()
+        // Simulate a crashed prior run: a stale staging bundle with this slug's plist.
+        let staleContents = out.appendingPathComponent(".duply-staging-fake-work.app/Contents")
+        try FileManager.default.createDirectory(at: staleContents, withIntermediateDirectories: true)
+        let plist = WrapperPlist.plist(for: spec)
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: staleContents.appendingPathComponent("Info.plist"))
+
+        let wrapper = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: out)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: wrapper.appendingPathComponent("Contents/MacOS/duply-launcher").path))
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path).filter { $0.hasPrefix(".duply-staging") }
+        XCTAssertEqual(leftovers, [])
+    }
 }
