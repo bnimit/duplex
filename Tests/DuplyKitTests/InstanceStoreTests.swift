@@ -73,4 +73,32 @@ final class InstanceStoreTests: XCTestCase {
         let instances = InstanceStore.scan(outputDir: out, homePath: "/tmp/h")
         XCTAssertEqual(instances.map(\.slug), ["fake-work"])
     }
+
+    private func makeRawWrapper(slug: String, in out: URL) throws {
+        let contents = out.appendingPathComponent("Evil-\(UUID().uuidString.prefix(6)).app/Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let plist: [String: Any] = [
+            "CFBundleIdentifier": "com.duply.evil",
+            DuplyPlistKey.instanceSlug: slug,
+            DuplyPlistKey.targetBundleID: "com.x.fake",
+            DuplyPlistKey.targetPath: "/Applications/Fake.app",
+            DuplyPlistKey.instanceName: "Evil",
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try data.write(to: contents.appendingPathComponent("Info.plist"))
+    }
+
+    func testScanSkipsTraversalSlug() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        try makeRawWrapper(slug: "../../evil", in: out)
+        try makeRawWrapper(slug: "", in: out)
+        try makeRawWrapper(slug: "Has Spaces/..", in: out)
+        XCTAssertTrue(InstanceStore.scan(outputDir: out, homePath: tmp.path).isEmpty)
+    }
+
+    func testScanAcceptsWellFormedSlug() throws {
+        try generateWrapper(named: "Fake Work", slug: "fake-work-2")
+        let instances = InstanceStore.scan(outputDir: tmp.appendingPathComponent("wrappers"), homePath: tmp.path)
+        XCTAssertEqual(instances.map(\.slug), ["fake-work-2"])
+    }
 }

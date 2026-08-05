@@ -1,5 +1,14 @@
 import Foundation
 
+public enum InstanceStoreError: Error, LocalizedError {
+    case invalidSlug(String)
+    public var errorDescription: String? {
+        switch self {
+        case .invalidSlug(let s): return "Refusing to delete data for malformed instance id \"\(s)\"."
+        }
+    }
+}
+
 public struct Instance: Equatable, Identifiable {
     public var id: String { slug }
     public let wrapperURL: URL
@@ -12,6 +21,12 @@ public struct Instance: Equatable, Identifiable {
 }
 
 public enum InstanceStore {
+    /// Slugs come from external Info.plists — only SlugGenerator's alphabet is trusted
+    /// because the slug becomes a filesystem path that delete() removes recursively.
+    static func isValidSlug(_ slug: String) -> Bool {
+        slug.range(of: "^[a-z0-9]+(-[a-z0-9]+)*$", options: .regularExpression) != nil
+    }
+
     public static func scan(outputDir: URL, homePath: String) -> [Instance] {
         let fm = FileManager.default
         let bundles = (try? fm.contentsOfDirectory(at: outputDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
@@ -20,7 +35,7 @@ public enum InstanceStore {
             let plistURL = bundle.appendingPathComponent("Contents/Info.plist")
             guard let data = try? Data(contentsOf: plistURL),
                   let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-                  let slug = plist[DuplyPlistKey.instanceSlug] as? String,
+                  let slug = plist[DuplyPlistKey.instanceSlug] as? String, isValidSlug(slug),
                   let targetBundleID = plist[DuplyPlistKey.targetBundleID] as? String,
                   let targetPath = plist[DuplyPlistKey.targetPath] as? String
             else { continue }
@@ -55,6 +70,7 @@ public enum InstanceStore {
     }
 
     public static func delete(_ instance: Instance, includingData: Bool) throws {
+        guard isValidSlug(instance.slug) else { throw InstanceStoreError.invalidSlug(instance.slug) }
         let fm = FileManager.default
         // Trash is friendlier than rm; fall back to remove if trashing is unavailable (e.g. tmpfs in tests).
         do { try fm.trashItem(at: instance.wrapperURL, resultingItemURL: nil) }
