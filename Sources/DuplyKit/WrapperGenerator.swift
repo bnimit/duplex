@@ -3,9 +3,14 @@ import CoreServices
 
 public enum WrapperGeneratorError: Error, LocalizedError {
     case codesignFailed(Int32)
+    case destinationOccupied(String)
+
     public var errorDescription: String? {
         switch self {
-        case .codesignFailed(let status): return "codesign failed with exit status \(status)."
+        case .codesignFailed(let status):
+            return "codesign failed with exit status \(status)."
+        case .destinationOccupied(let name):
+            return "\(name).app already exists there and isn't this instance's wrapper — pick a different instance name."
         }
     }
 }
@@ -22,20 +27,45 @@ public struct WrapperGenerator {
         let fm = FileManager.default
         try fm.createDirectory(at: outputDir, withIntermediateDirectories: true)
 
-        // Regenerate in place: remove any existing wrapper carrying this slug (name may have changed).
-        for existing in (try? fm.contentsOfDirectory(at: outputDir, includingPropertiesForKeys: nil)) ?? []
-        where existing.pathExtension == "app" {
-            let plistURL = existing.appendingPathComponent("Contents/Info.plist")
-            if let data = try? Data(contentsOf: plistURL),
-               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-               plist[DuplyPlistKey.instanceSlug] as? String == spec.slug {
-                try fm.removeItem(at: existing)
-            }
+        // Locate this slug's existing wrapper (if any) — replaced only after the new build succeeds.
+        let oldWrapper = ((try? fm.contentsOfDirectory(at: outputDir, includingPropertiesForKeys: nil)) ?? [])
+            .first { $0.pathExtension == "app" && wrapperSlug(of: $0) == spec.slug }
+
+        // Never overwrite a bundle that isn't this instance's wrapper (a real app, or another instance).
+        let wrapper = outputDir.appendingPathComponent("\(spec.name).app")
+        if fm.fileExists(atPath: wrapper.path), wrapperSlug(of: wrapper) != spec.slug {
+            throw WrapperGeneratorError.destinationOccupied(spec.name)
         }
 
-        let wrapper = outputDir.appendingPathComponent("\(spec.name).app")
-        if fm.fileExists(atPath: wrapper.path) { try fm.removeItem(at: wrapper) }
-        let contents = wrapper.appendingPathComponent("Contents")
+        // Stage the new bundle, sign it, and only then swap it in.
+        let staging = outputDir.appendingPathComponent(".duply-staging-\(spec.slug).app")
+        if fm.fileExists(atPath: staging.path) { try fm.removeItem(at: staging) }
+        do {
+            try build(spec: spec, icon: icon, at: staging)
+            try codesign(staging)
+        } catch {
+            try? fm.removeItem(at: staging)
+            throw error
+        }
+
+        if let oldWrapper, fm.fileExists(atPath: oldWrapper.path) { try fm.removeItem(at: oldWrapper) }
+        if fm.fileExists(atPath: wrapper.path) { try fm.removeItem(at: wrapper) } // only reachable for same-slug leftovers
+        try fm.moveItem(at: staging, to: wrapper)
+        LSRegisterURL(wrapper as CFURL, true)
+        return wrapper
+    }
+
+    private func wrapperSlug(of bundle: URL) -> String? {
+        let plistURL = bundle.appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: plistURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return nil }
+        return plist[DuplyPlistKey.instanceSlug] as? String
+    }
+
+    private func build(spec: InstanceSpec, icon: IconChoice, at bundleURL: URL) throws {
+        let fm = FileManager.default
+        let contents = bundleURL.appendingPathComponent("Contents")
         try fm.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
         try fm.createDirectory(at: contents.appendingPathComponent("Resources"), withIntermediateDirectories: true)
 
@@ -56,10 +86,6 @@ public struct WrapperGenerator {
             iconImage = try IconBadger.loadImage(at: url)
         }
         try IconBadger.writeICNS(iconImage, to: contents.appendingPathComponent("Resources/icon.icns"))
-
-        try codesign(wrapper)
-        LSRegisterURL(wrapper as CFURL, true) // make LaunchServices aware (URL-scheme routing)
-        return wrapper
     }
 
     private func codesign(_ bundle: URL) throws {

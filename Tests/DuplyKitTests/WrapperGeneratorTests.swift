@@ -71,4 +71,41 @@ final class WrapperGeneratorTests: XCTestCase {
         let wrapper = try generator.generate(spec: try makeSpec(), icon: .custom(png), outputDir: out)
         XCTAssertNotNil(NSImage(contentsOf: wrapper.appendingPathComponent("Contents/Resources/icon.icns")))
     }
+
+    func testRefusesToOverwriteBystanderApp() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        _ = try FixtureFactory.makeFakeApp(named: "Fake Work", bundleID: "com.other.real", electron: false, in: out)
+        XCTAssertThrowsError(try generator.generate(spec: try makeSpec(), icon: .badge(.blue), outputDir: out)) { error in
+            guard case WrapperGeneratorError.destinationOccupied = error else { return XCTFail("wrong error: \(error)") }
+        }
+        let data = try Data(contentsOf: out.appendingPathComponent("Fake Work.app/Contents/Info.plist"))
+        let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as! [String: Any]
+        XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "com.other.real")
+    }
+
+    func testRefusesNameCollisionWithDifferentSlugWrapper() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        let spec = try makeSpec()
+        _ = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: out)
+        let colliding = InstanceSpec(name: "Fake Work", slug: "fake-work-2", target: spec.target)
+        XCTAssertThrowsError(try generator.generate(spec: colliding, icon: .badge(.red), outputDir: out)) { error in
+            guard case WrapperGeneratorError.destinationOccupied = error else { return XCTFail("wrong error: \(error)") }
+        }
+        let data = try Data(contentsOf: out.appendingPathComponent("Fake Work.app/Contents/Info.plist"))
+        let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as! [String: Any]
+        XCTAssertEqual(plist[DuplyPlistKey.instanceSlug] as? String, "fake-work")
+    }
+
+    func testFailedBuildKeepsOldWrapper() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        let spec = try makeSpec()
+        _ = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: out)
+        let broken = WrapperGenerator(launcherBinary: tmp.appendingPathComponent("no-such-launcher"))
+        XCTAssertThrowsError(try broken.generate(spec: spec, icon: .badge(.green), outputDir: out))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: out.appendingPathComponent("Fake Work.app/Contents/MacOS/duply-launcher").path))
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path).filter { $0.hasPrefix(".duply-staging") }
+        XCTAssertEqual(leftovers, [])
+    }
 }
