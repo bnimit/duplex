@@ -8,10 +8,14 @@ struct InstanceEditorSheet: View {
 
     let existing: Instance?
 
+    private enum IconMode: Hashable {
+        case keep, badge, custom
+    }
+
     @State private var appURL: URL?
     @State private var name: String = ""
     @State private var badgeColor: BadgeColor = .blue
-    @State private var useCustomIcon = false
+    @State private var iconMode: IconMode = .badge
     @State private var customIconURL: URL?
     @State private var validationError: String?
 
@@ -30,20 +34,27 @@ struct InstanceEditorSheet: View {
             TextField("Instance name (e.g. Claude Work)", text: $name)
                 .textFieldStyle(.roundedBorder)
 
-            Picker("Icon", selection: $useCustomIcon) {
-                Text("Colored badge").tag(false)
-                Text("Custom image").tag(true)
+            Picker("Icon", selection: $iconMode) {
+                if existing != nil {
+                    Text("Keep current icon").tag(IconMode.keep)
+                }
+                Text("Colored badge").tag(IconMode.badge)
+                Text("Custom image").tag(IconMode.custom)
             }
             .pickerStyle(.segmented)
 
-            if useCustomIcon {
+            switch iconMode {
+            case .keep:
+                Text("The wrapper's current icon will be left unchanged.")
+                    .font(.callout).foregroundStyle(.secondary)
+            case .custom:
                 HStack {
                     Text(customIconURL?.lastPathComponent ?? "No image selected")
                         .foregroundStyle(customIconURL == nil ? .secondary : .primary)
                     Spacer()
                     Button("Choose Image…") { pickImage() }
                 }
-            } else {
+            case .badge:
                 HStack(spacing: 8) {
                     ForEach(BadgeColor.allCases) { color in
                         Circle()
@@ -65,7 +76,7 @@ struct InstanceEditorSheet: View {
                 Button(existing == nil ? "Create" : "Save") { submit() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(appURL == nil || name.trimmingCharacters(in: .whitespaces).isEmpty
-                              || (useCustomIcon && customIconURL == nil))
+                              || (iconMode == .custom && customIconURL == nil))
             }
         }
         .padding(20)
@@ -74,6 +85,7 @@ struct InstanceEditorSheet: View {
             if let existing {
                 name = existing.name
                 appURL = URL(fileURLWithPath: existing.targetPath)
+                iconMode = .keep
             }
         }
     }
@@ -118,10 +130,22 @@ struct InstanceEditorSheet: View {
 
     private func submit() {
         guard let appURL else { return }
-        let icon: IconChoice = useCustomIcon ? .custom(customIconURL!) : .badge(badgeColor)
+        let icon: IconChoice
+        switch iconMode {
+        case .keep: icon = .keepExisting
+        case .badge: icon = .badge(badgeColor)
+        case .custom: icon = .custom(customIconURL!)
+        }
         state.create(
             name: name.trimmingCharacters(in: .whitespaces),
             appURL: appURL, icon: icon, existingSlug: existing?.slug)
-        if state.errorMessage == nil { dismiss() }
+        // The error alert lives on the parent view, under this sheet, so it would never be
+        // seen here — surface the failure inline instead and keep the sheet open.
+        if let message = state.errorMessage {
+            validationError = message
+            state.errorMessage = nil
+        } else {
+            dismiss()
+        }
     }
 }

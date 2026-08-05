@@ -80,7 +80,7 @@ struct InstanceListView: View {
                 .resizable().frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(instance.name).font(.headline)
-                Text("\(instance.targetBundleID) · \(ByteCountFormatter.string(fromByteCount: InstanceStore.dataSize(of: instance), countStyle: .file))")
+                Text("\(instance.targetBundleID) · \(ByteCountFormatter.string(fromByteCount: state.dataSizes[instance.slug] ?? 0, countStyle: .file))")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

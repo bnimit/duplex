@@ -5,6 +5,7 @@ import DuplyKit
 @MainActor
 final class AppState: ObservableObject {
     @Published var instances: [Instance] = []
+    @Published var dataSizes: [String: Int64] = [:]
     @Published var errorMessage: String?
 
     let outputDir = WrapperGenerator.defaultOutputDir()
@@ -12,6 +13,11 @@ final class AppState: ObservableObject {
 
     func refresh() {
         instances = InstanceStore.scan(outputDir: outputDir, homePath: homePath)
+        var sizes: [String: Int64] = [:]
+        for instance in instances {
+            sizes[instance.slug] = InstanceStore.dataSize(of: instance)
+        }
+        dataSizes = sizes
     }
 
     /// The launcher binary: inside Duply.app it's bundled in Resources;

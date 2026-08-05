@@ -109,6 +109,26 @@ final class WrapperGeneratorTests: XCTestCase {
         XCTAssertEqual(leftovers, [])
     }
 
+    func testKeepExistingIconPreservesIconBytes() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        let spec = try makeSpec()
+        let wrapper = try generator.generate(spec: spec, icon: .badge(.red), outputDir: out)
+        let originalIconData = try Data(contentsOf: wrapper.appendingPathComponent("Contents/Resources/icon.icns"))
+
+        let regenerated = try generator.generate(spec: spec, icon: .keepExisting, outputDir: out)
+        let regeneratedIconData = try Data(contentsOf: regenerated.appendingPathComponent("Contents/Resources/icon.icns"))
+
+        XCTAssertEqual(originalIconData, regeneratedIconData)
+    }
+
+    func testKeepExistingIconWithNoOldWrapperFallsBack() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        let wrapper = try generator.generate(spec: try makeSpec(), icon: .keepExisting, outputDir: out)
+        let iconURL = wrapper.appendingPathComponent("Contents/Resources/icon.icns")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iconURL.path))
+        XCTAssertNotNil(NSImage(contentsOf: iconURL))
+    }
+
     func testStaleStagingLeftoverDoesNotBreakGenerate() throws {
         let out = tmp.appendingPathComponent("wrappers")
         let spec = try makeSpec()

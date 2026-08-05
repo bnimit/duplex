@@ -8,6 +8,10 @@ public enum BadgeColor: String, CaseIterable, Identifiable {
 public enum IconChoice: Equatable {
     case badge(BadgeColor)
     case custom(URL)
+    /// Preserve whatever icon the wrapper being regenerated already has (used when editing
+    /// an instance without changing its icon). Falls back to `.badge(.blue)` when there is
+    /// no prior wrapper to copy from (e.g. first-time generation).
+    case keepExisting
 }
 
 public struct InstanceSpec {

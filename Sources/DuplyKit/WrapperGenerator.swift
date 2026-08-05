@@ -43,7 +43,7 @@ public struct WrapperGenerator {
         let staging = outputDir.appendingPathComponent(".duply-staging-\(spec.slug).app")
         if fm.fileExists(atPath: staging.path) { try fm.removeItem(at: staging) }
         do {
-            try build(spec: spec, icon: icon, at: staging)
+            try build(spec: spec, icon: icon, oldWrapper: oldWrapper, at: staging)
             try codesign(staging)
         } catch {
             try? fm.removeItem(at: staging)
@@ -65,7 +65,7 @@ public struct WrapperGenerator {
         return plist[DuplyPlistKey.instanceSlug] as? String
     }
 
-    private func build(spec: InstanceSpec, icon: IconChoice, at bundleURL: URL) throws {
+    private func build(spec: InstanceSpec, icon: IconChoice, oldWrapper: URL?, at bundleURL: URL) throws {
         let fm = FileManager.default
         let contents = bundleURL.appendingPathComponent("Contents")
         try fm.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
@@ -80,14 +80,25 @@ public struct WrapperGenerator {
         try fm.copyItem(at: launcherBinary, to: exec)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exec.path)
 
-        let iconImage: NSImage
+        // Icon must be written before codesign — the signature seals Resources.
+        let iconDestination = contents.appendingPathComponent("Resources/icon.icns")
         switch icon {
         case .badge(let color):
-            iconImage = IconBadger.badged(NSWorkspace.shared.icon(forFile: spec.target.url.path), color: color)
+            let image = IconBadger.badged(NSWorkspace.shared.icon(forFile: spec.target.url.path), color: color)
+            try IconBadger.writeICNS(image, to: iconDestination)
         case .custom(let url):
-            iconImage = try IconBadger.loadImage(at: url)
+            let image = try IconBadger.loadImage(at: url)
+            try IconBadger.writeICNS(image, to: iconDestination)
+        case .keepExisting:
+            let oldIcon = oldWrapper?.appendingPathComponent("Contents/Resources/icon.icns")
+            if let oldIcon, fm.fileExists(atPath: oldIcon.path) {
+                try fm.copyItem(at: oldIcon, to: iconDestination)
+            } else {
+                // No prior wrapper to copy from (e.g. first-time generation) — fall back to badge(.blue).
+                let image = IconBadger.badged(NSWorkspace.shared.icon(forFile: spec.target.url.path), color: .blue)
+                try IconBadger.writeICNS(image, to: iconDestination)
+            }
         }
-        try IconBadger.writeICNS(iconImage, to: contents.appendingPathComponent("Resources/icon.icns"))
     }
 
     private func codesign(_ bundle: URL) throws {
