@@ -31,4 +31,13 @@ public enum LauncherLogic {
     public static func execArguments(targetExecutable: String, dataDir: URL) -> [String] {
         [targetExecutable, "--user-data-dir=\(dataDir.path)"]
     }
+
+    /// Picks the target app bundle: LaunchServices resolution wins when it exists on disk,
+    /// otherwise the recorded path (if it exists). Pure for testability.
+    public static func resolveTarget(lsResolved: URL?, fallbackPath: String,
+                                     fileExists: (String) -> Bool) -> URL? {
+        if let resolved = lsResolved, fileExists(resolved.path) { return resolved }
+        if fileExists(fallbackPath) { return URL(fileURLWithPath: fallbackPath) }
+        return nil
+    }
 }

@@ -16,14 +16,11 @@ guard let info = Bundle.main.infoDictionary,
 }
 
 // Resolve the target app: prefer LaunchServices (survives moves/updates), fall back to the recorded path.
-var targetURL: URL?
-if let resolved = NSWorkspace.shared.urlForApplication(withBundleIdentifier: config.targetBundleID),
-   FileManager.default.fileExists(atPath: resolved.path) {
-    targetURL = resolved
-} else if FileManager.default.fileExists(atPath: config.targetPath) {
-    targetURL = URL(fileURLWithPath: config.targetPath)
-}
-guard let appURL = targetURL else {
+let appURL = LauncherLogic.resolveTarget(
+    lsResolved: NSWorkspace.shared.urlForApplication(withBundleIdentifier: config.targetBundleID),
+    fallbackPath: config.targetPath,
+    fileExists: { FileManager.default.fileExists(atPath: $0) })
+guard let appURL = appURL else {
     fail("The original app (\(config.targetBundleID)) could not be found. Was it uninstalled?")
 }
 
