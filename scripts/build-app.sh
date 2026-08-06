@@ -17,7 +17,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key><string>com.duplex.app</string>
+    <key>CFBundleIdentifier</key><string>com.duplex-app.Duplex</string>
     <key>CFBundleName</key><string>Duplex</string>
     <key>CFBundleDisplayName</key><string>Duplex</string>
     <key>CFBundleExecutable</key><string>Duplex</string>

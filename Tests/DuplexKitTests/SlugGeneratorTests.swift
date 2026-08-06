@@ -16,4 +16,11 @@ final class SlugGeneratorTests: XCTestCase {
         XCTAssertEqual(SlugGenerator.slug(from: "Claude Work", existing: ["claude-work"]), "claude-work-2")
         XCTAssertEqual(SlugGenerator.slug(from: "Claude Work", existing: ["claude-work", "claude-work-2"]), "claude-work-3")
     }
+
+    func testAppSlugIsReserved() {
+        // "app" is reserved — it would collide with Duplex.app's own bundle-ID
+        // namespace (historically com.duplex.app), so it must never be handed
+        // out as an instance slug, even with no other instances present.
+        XCTAssertNotEqual(SlugGenerator.slug(from: "App", existing: []), "app")
+    }
 }

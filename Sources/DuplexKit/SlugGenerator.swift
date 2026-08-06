@@ -10,6 +10,9 @@ public enum SlugGenerator {
         while base.contains("--") { base = base.replacingOccurrences(of: "--", with: "-") }
         base = base.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         if base.isEmpty { base = "instance" }
+        // "app" is reserved: it would collide with Duplex.app's own bundle-ID
+        // namespace (historically com.duplex.app), so always treat it as taken.
+        if base == "app" { base = "app-instance" }
 
         if !existing.contains(base) { return base }
         var n = 2
