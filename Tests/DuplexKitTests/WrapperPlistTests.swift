@@ -16,7 +16,7 @@ final class WrapperPlistTests: XCTestCase {
         XCTAssertEqual(plist["CFBundleExecutable"] as? String, "duplex-launcher")
         XCTAssertEqual(plist["CFBundlePackageType"] as? String, "APPL")
         XCTAssertEqual(plist["CFBundleIconFile"] as? String, "icon")
-        XCTAssertEqual(plist["LSMinimumSystemVersion"] as? String, "12.0")
+        XCTAssertEqual(plist["LSMinimumSystemVersion"] as? String, "13.0")
         XCTAssertEqual(plist[DuplexPlistKey.targetBundleID] as? String, "com.x.fake")
         XCTAssertEqual(plist[DuplexPlistKey.targetPath] as? String, "/Applications/Fake.app")
         XCTAssertEqual(plist[DuplexPlistKey.instanceSlug] as? String, "fake-work")
