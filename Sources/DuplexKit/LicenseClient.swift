@@ -68,8 +68,11 @@ public struct LemonSqueezyClient: LicenseClient {
         guard let parsed = try? JSONDecoder().decode(Response.self, from: data) else {
             throw LicenseClientError.network("unexpected response (HTTP \(status))")
         }
-        guard parsed.activated, let id = parsed.instance?.id else {
+        guard parsed.activated else {
             throw LicenseClientError.keyInvalid(parsed.error ?? "The license key was not accepted.")
+        }
+        guard let id = parsed.instance?.id else {
+            throw LicenseClientError.network("activation response missing instance id (HTTP \(status))")
         }
         return LicenseActivation(activationID: id)
     }

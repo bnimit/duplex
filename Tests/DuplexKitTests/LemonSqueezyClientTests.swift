@@ -43,6 +43,15 @@ final class LemonSqueezyClientTests: XCTestCase {
             XCTAssertEqual(e, .keyInvalid("activation limit reached"))
         } catch { XCTFail("wrong error: \(error)") }
     }
+    func testActivatedTrueWithoutInstanceMapsToNetworkError() async {
+        let client = LemonSqueezyClient(transport: StubTransport(json: #"{"activated": true}"#))
+        do {
+            _ = try await client.activate(key: "K", instanceName: "Mac")
+            XCTFail("expected throw")
+        } catch let e as LicenseClientError {
+            guard case .network = e else { return XCTFail("expected .network, got \(e)") }
+        } catch { XCTFail("wrong error: \(error)") }
+    }
     func testValidateParsesValidTrueAndFalse() async throws {
         let valid = LemonSqueezyClient(transport: StubTransport(json: #"{"valid": true}"#))
         let revoked = LemonSqueezyClient(transport: StubTransport(json: #"{"valid": false}"#, status: 404))
