@@ -47,8 +47,10 @@ Run `open dist/Duplex.app` to launch it.
    Claude Desktop) from `/Applications`, give the instance a name (e.g.
    "Claude Work"), and choose an icon. By default the wrapper gets an exact,
    full-resolution copy of the target app's own icon; a colored badge over
-   that icon or a custom image are also available. Duplex generates and signs
-   the wrapper bundle.
+   that icon or a custom image are also available. Note that the Dock only
+   shows app names on hover, so if you run the original and a clone side by
+   side and want to tell them apart at a glance, pick the badge or a custom
+   image. Duplex generates and signs the wrapper bundle.
 2. **Launch it**: click Launch on the instance's row. The wrapper starts the
    target app with its own private data directory, so it opens to a fresh,
    logged-out state the first time. If the original app is not running, start
