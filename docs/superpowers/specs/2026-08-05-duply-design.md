@@ -127,7 +127,7 @@ complete browser-based login.
 |---|---|
 | Non-Electron target selected | Refused at creation with explanation |
 | Target app uninstalled/moved | Launcher shows an alert (not a silent exit) |
-| Duplicate instance name | Slug auto-suffixed (`claude-work-2`) |
+| Duplicate instance name | Refused at creation ("pick a different instance name"); the slug auto-suffix (`claude-work-2`) only applies when two *different* names collide after slugging |
 | Same wrapper launched twice | Target's single-instance lock (keyed on data dir) focuses the existing window — harmless |
 | Original app launched from Dock/Finder while an instance is running | LaunchServices may focus the instance instead of launching the original (observed). Documented; launching the original first avoids it |
 | Delete instance | Confirm dialog; optional deletion of data folder |
