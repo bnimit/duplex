@@ -129,6 +129,53 @@ final class WrapperGeneratorTests: XCTestCase {
         XCTAssertNotNil(NSImage(contentsOf: iconURL))
     }
 
+    func testOriginalIconCopiesTargetIcnsExactly() throws {
+        let spec = try makeSpec()
+
+        // Write a real .icns into the target app's Resources and point CFBundleIconFile at it.
+        let iconImage = NSImage(size: NSSize(width: 64, height: 64))
+        iconImage.lockFocus(); NSColor.orange.setFill(); NSRect(x: 0, y: 0, width: 64, height: 64).fill(); iconImage.unlockFocus()
+
+        let resources = spec.target.url.appendingPathComponent("Contents/Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        let icnsURL = resources.appendingPathComponent("AppIcon.icns")
+        try IconBadger.writeICNS(iconImage, to: icnsURL)
+
+        let plistURL = spec.target.url.appendingPathComponent("Contents/Info.plist")
+        var plist = try PropertyListSerialization.propertyList(
+            from: try Data(contentsOf: plistURL), format: nil) as! [String: Any]
+        plist["CFBundleIconFile"] = "AppIcon"
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: plistURL)
+
+        let out = tmp.appendingPathComponent("wrappers")
+        let wrapper = try generator.generate(spec: spec, icon: .original, outputDir: out)
+
+        let targetIcnsData = try Data(contentsOf: icnsURL)
+        let wrapperIcnsData = try Data(contentsOf: wrapper.appendingPathComponent("Contents/Resources/icon.icns"))
+        XCTAssertEqual(targetIcnsData, wrapperIcnsData, "the wrapper's icon should be a byte-identical copy of the target's")
+    }
+
+    func testOriginalIconFallsBackWhenTargetHasNoIcns() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        // makeSpec()'s fake app has no CFBundleIconFile / .icns at all.
+        let wrapper = try generator.generate(spec: try makeSpec(), icon: .original, outputDir: out)
+        let iconURL = wrapper.appendingPathComponent("Contents/Resources/icon.icns")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: iconURL.path))
+        XCTAssertNotNil(NSImage(contentsOf: iconURL))
+    }
+
+    func testWrittenIcnsContainsHiResRep() throws {
+        let image = NSImage(size: NSSize(width: 1024, height: 1024))
+        image.lockFocus(); NSColor.blue.setFill(); NSRect(x: 0, y: 0, width: 1024, height: 1024).fill(); image.unlockFocus()
+
+        let out = tmp.appendingPathComponent("hires.icns")
+        try IconBadger.writeICNS(image, to: out)
+
+        guard let loaded = NSImage(contentsOf: out) else { return XCTFail("could not load written icns") }
+        let hasHiRes = loaded.representations.contains { $0.pixelsWide >= 1024 }
+        XCTAssertTrue(hasHiRes, "written .icns should contain a >=1024px representation")
+    }
+
     func testStaleStagingLeftoverDoesNotBreakGenerate() throws {
         let out = tmp.appendingPathComponent("wrappers")
         let spec = try makeSpec()

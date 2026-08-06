@@ -45,8 +45,10 @@ Run `open dist/Duplex.app` to launch it.
 
 1. **Create an instance**: click "New Instance…", pick the target app (e.g.
    Claude Desktop) from `/Applications`, give the instance a name (e.g.
-   "Claude Work"), and choose an icon (a colored badge over the target's icon,
-   or a custom image). Duplex generates and signs the wrapper bundle.
+   "Claude Work"), and choose an icon. By default the wrapper gets an exact,
+   full-resolution copy of the target app's own icon; a colored badge over
+   that icon or a custom image are also available. Duplex generates and signs
+   the wrapper bundle.
 2. **Launch it**: click Launch on the instance's row. The wrapper starts the
    target app with its own private data directory, so it opens to a fresh,
    logged-out state the first time. If the original app is not running, start
@@ -72,4 +74,4 @@ Run `open dist/Duplex.app` to launch it.
 | Per-instance TCC prompts | Expected once per wrapper (mic/camera/notifications are per-bundle-ID) |
 | Preferences (`NSUserDefaults`) shared across instances | Accepted: Electron apps keep state in the profile dir, not in plists |
 | Menu-bar app name | Electron apps draw their own menu-bar title, so it may still read the original app's name while the Dock shows the instance name |
-| Stale wrapper icon after target update | Edit → regenerate refreshes the badge |
+| Stale wrapper icon after target update | Edit → regenerate refreshes the icon |

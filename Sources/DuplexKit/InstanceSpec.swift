@@ -6,6 +6,10 @@ public enum BadgeColor: String, CaseIterable, Identifiable {
 }
 
 public enum IconChoice: Equatable {
+    /// An exact, full-resolution copy of the target app's own icon, with no badge. This is
+    /// the default for new instances. Falls back to a rendered (unbadged) icon when the
+    /// target has no usable .icns (e.g. Assets.car-only apps).
+    case original
     case badge(BadgeColor)
     case custom(URL)
     /// Preserve whatever icon the wrapper being regenerated already has (used when editing

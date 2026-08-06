@@ -83,8 +83,18 @@ public struct WrapperGenerator {
         // Icon must be written before codesign — the signature seals Resources.
         let iconDestination = contents.appendingPathComponent("Resources/icon.icns")
         switch icon {
+        case .original:
+            if let sourceIcns = originalIconURL(for: spec.target) {
+                try fm.copyItem(at: sourceIcns, to: iconDestination)
+            } else {
+                // No usable .icns on the target (e.g. Assets.car-only app) — fall back to a
+                // rendered, unbadged icon.
+                let icon = IconBadger.normalizedIcon(NSWorkspace.shared.icon(forFile: spec.target.url.path))
+                try IconBadger.writeICNS(icon, to: iconDestination)
+            }
         case .badge(let color):
-            let image = IconBadger.badged(NSWorkspace.shared.icon(forFile: spec.target.url.path), color: color)
+            let icon = IconBadger.normalizedIcon(NSWorkspace.shared.icon(forFile: spec.target.url.path))
+            let image = IconBadger.badged(icon, color: color)
             try IconBadger.writeICNS(image, to: iconDestination)
         case .custom(let url):
             let image = try IconBadger.loadImage(at: url)
@@ -95,10 +105,25 @@ public struct WrapperGenerator {
                 try fm.copyItem(at: oldIcon, to: iconDestination)
             } else {
                 // No prior wrapper to copy from (e.g. first-time generation) — fall back to badge(.blue).
-                let image = IconBadger.badged(NSWorkspace.shared.icon(forFile: spec.target.url.path), color: .blue)
+                let icon = IconBadger.normalizedIcon(NSWorkspace.shared.icon(forFile: spec.target.url.path))
+                let image = IconBadger.badged(icon, color: .blue)
                 try IconBadger.writeICNS(image, to: iconDestination)
             }
         }
+    }
+
+    /// Locates the target app's own .icns file via its `CFBundleIconFile` Info.plist key.
+    /// Returns nil when the plist, key, or file is missing/unreadable (e.g. Assets.car-only apps).
+    private func originalIconURL(for target: TargetApp) -> URL? {
+        let plistURL = target.url.appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: plistURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              var iconFile = plist["CFBundleIconFile"] as? String,
+              !iconFile.isEmpty
+        else { return nil }
+        if !iconFile.lowercased().hasSuffix(".icns") { iconFile += ".icns" }
+        let iconURL = target.url.appendingPathComponent("Contents/Resources/\(iconFile)")
+        return FileManager.default.fileExists(atPath: iconURL.path) ? iconURL : nil
     }
 
     private func codesign(_ bundle: URL) throws {

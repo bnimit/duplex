@@ -9,13 +9,15 @@ struct InstanceEditorSheet: View {
     let existing: Instance?
 
     private enum IconMode: Hashable {
-        case keep, badge, custom
+        case keep, original, badge, custom
     }
 
     @State private var appURL: URL?
     @State private var name: String = ""
     @State private var badgeColor: BadgeColor = .blue
-    @State private var iconMode: IconMode = .badge
+    // New instances default to an exact copy of the target's icon; the edit flow overrides
+    // this to `.keep` in `onAppear` so regenerating doesn't silently change the icon.
+    @State private var iconMode: IconMode = .original
     @State private var customIconURL: URL?
     @State private var validationError: String?
 
@@ -35,6 +37,7 @@ struct InstanceEditorSheet: View {
                 .textFieldStyle(.roundedBorder)
 
             Picker("Icon", selection: $iconMode) {
+                Text("Original icon").tag(IconMode.original)
                 if existing != nil {
                     Text("Keep current icon").tag(IconMode.keep)
                 }
@@ -44,6 +47,9 @@ struct InstanceEditorSheet: View {
             .pickerStyle(.segmented)
 
             switch iconMode {
+            case .original:
+                Text("An exact copy of the target app's icon, at full resolution.")
+                    .font(.callout).foregroundStyle(.secondary)
             case .keep:
                 Text("The wrapper's current icon will be left unchanged.")
                     .font(.callout).foregroundStyle(.secondary)
@@ -133,6 +139,7 @@ struct InstanceEditorSheet: View {
         let icon: IconChoice
         switch iconMode {
         case .keep: icon = .keepExisting
+        case .original: icon = .original
         case .badge: icon = .badge(badgeColor)
         case .custom: icon = .custom(customIconURL!)
         }
