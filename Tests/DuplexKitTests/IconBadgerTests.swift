@@ -1,6 +1,6 @@
 import XCTest
 import AppKit
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class IconBadgerTests: XCTestCase {
     var tmp: URL!

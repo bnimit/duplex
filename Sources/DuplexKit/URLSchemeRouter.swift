@@ -2,7 +2,7 @@ import AppKit
 
 public enum URLSchemeRouter {
     public static func currentHandler(forScheme scheme: String) -> URL? {
-        guard let probe = URL(string: "\(scheme)://duply-probe") else { return nil }
+        guard let probe = URL(string: "\(scheme)://duplex-probe") else { return nil }
         return NSWorkspace.shared.urlForApplication(toOpen: probe)
     }
 

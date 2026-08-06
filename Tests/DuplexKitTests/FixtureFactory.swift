@@ -43,7 +43,7 @@ enum FixtureFactory {
 
     static func tempDir(_ testName: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("duply-tests-\(testName)-\(UUID().uuidString)")
+            .appendingPathComponent("duplex-tests-\(testName)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

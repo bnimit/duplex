@@ -40,7 +40,7 @@ public struct WrapperGenerator {
         }
 
         // Stage the new bundle, sign it, and only then swap it in.
-        let staging = outputDir.appendingPathComponent(".duply-staging-\(spec.slug).app")
+        let staging = outputDir.appendingPathComponent(".duplex-staging-\(spec.slug).app")
         if fm.fileExists(atPath: staging.path) { try fm.removeItem(at: staging) }
         do {
             try build(spec: spec, icon: icon, oldWrapper: oldWrapper, at: staging)
@@ -62,7 +62,7 @@ public struct WrapperGenerator {
         guard let data = try? Data(contentsOf: plistURL),
               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         else { return nil }
-        return plist[DuplyPlistKey.instanceSlug] as? String
+        return plist[DuplexPlistKey.instanceSlug] as? String
     }
 
     private func build(spec: InstanceSpec, icon: IconChoice, oldWrapper: URL?, at bundleURL: URL) throws {
@@ -76,7 +76,7 @@ public struct WrapperGenerator {
         try plistData.write(to: contents.appendingPathComponent("Info.plist"))
         try Data("APPL????".utf8).write(to: contents.appendingPathComponent("PkgInfo"))
 
-        let exec = contents.appendingPathComponent("MacOS/duply-launcher")
+        let exec = contents.appendingPathComponent("MacOS/duplex-launcher")
         try fm.copyItem(at: launcherBinary, to: exec)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exec.path)
 

@@ -1,6 +1,6 @@
 import XCTest
 import AppKit
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class WrapperGeneratorTests: XCTestCase {
     var tmp: URL!
@@ -26,13 +26,13 @@ final class WrapperGeneratorTests: XCTestCase {
         XCTAssertTrue(fm.fileExists(atPath: wrapper.appendingPathComponent("Contents/PkgInfo").path))
         XCTAssertTrue(fm.fileExists(atPath: wrapper.appendingPathComponent("Contents/Resources/icon.icns").path))
 
-        let exec = wrapper.appendingPathComponent("Contents/MacOS/duply-launcher")
+        let exec = wrapper.appendingPathComponent("Contents/MacOS/duplex-launcher")
         XCTAssertTrue(fm.isExecutableFile(atPath: exec.path))
 
         let data = try Data(contentsOf: wrapper.appendingPathComponent("Contents/Info.plist"))
         let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as! [String: Any]
-        XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "com.duply.fake-work")
-        XCTAssertEqual(plist[DuplyPlistKey.instanceSlug] as? String, "fake-work")
+        XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "com.duplex.fake-work")
+        XCTAssertEqual(plist[DuplexPlistKey.instanceSlug] as? String, "fake-work")
     }
 
     func testWrapperIsCodesigned() throws {
@@ -94,7 +94,7 @@ final class WrapperGeneratorTests: XCTestCase {
         }
         let data = try Data(contentsOf: out.appendingPathComponent("Fake Work.app/Contents/Info.plist"))
         let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as! [String: Any]
-        XCTAssertEqual(plist[DuplyPlistKey.instanceSlug] as? String, "fake-work")
+        XCTAssertEqual(plist[DuplexPlistKey.instanceSlug] as? String, "fake-work")
     }
 
     func testFailedBuildKeepsOldWrapper() throws {
@@ -104,8 +104,8 @@ final class WrapperGeneratorTests: XCTestCase {
         let broken = WrapperGenerator(launcherBinary: tmp.appendingPathComponent("no-such-launcher"))
         XCTAssertThrowsError(try broken.generate(spec: spec, icon: .badge(.green), outputDir: out))
         XCTAssertTrue(FileManager.default.fileExists(
-            atPath: out.appendingPathComponent("Fake Work.app/Contents/MacOS/duply-launcher").path))
-        let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path).filter { $0.hasPrefix(".duply-staging") }
+            atPath: out.appendingPathComponent("Fake Work.app/Contents/MacOS/duplex-launcher").path))
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path).filter { $0.hasPrefix(".duplex-staging") }
         XCTAssertEqual(leftovers, [])
     }
 
@@ -133,7 +133,7 @@ final class WrapperGeneratorTests: XCTestCase {
         let out = tmp.appendingPathComponent("wrappers")
         let spec = try makeSpec()
         // Simulate a crashed prior run: a stale staging bundle with this slug's plist.
-        let staleContents = out.appendingPathComponent(".duply-staging-fake-work.app/Contents")
+        let staleContents = out.appendingPathComponent(".duplex-staging-fake-work.app/Contents")
         try FileManager.default.createDirectory(at: staleContents, withIntermediateDirectories: true)
         let plist = WrapperPlist.plist(for: spec)
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
@@ -141,8 +141,8 @@ final class WrapperGeneratorTests: XCTestCase {
 
         let wrapper = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: out)
         XCTAssertTrue(FileManager.default.fileExists(
-            atPath: wrapper.appendingPathComponent("Contents/MacOS/duply-launcher").path))
-        let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path).filter { $0.hasPrefix(".duply-staging") }
+            atPath: wrapper.appendingPathComponent("Contents/MacOS/duplex-launcher").path))
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: out.path).filter { $0.hasPrefix(".duplex-staging") }
         XCTAssertEqual(leftovers, [])
     }
 }

@@ -1,12 +1,12 @@
 import XCTest
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class LauncherLogicTests: XCTestCase {
     func testConfigParsing() {
         let info: [String: Any] = [
-            DuplyPlistKey.targetBundleID: "com.x.fake",
-            DuplyPlistKey.targetPath: "/Applications/Fake.app",
-            DuplyPlistKey.instanceSlug: "fake-work",
+            DuplexPlistKey.targetBundleID: "com.x.fake",
+            DuplexPlistKey.targetPath: "/Applications/Fake.app",
+            DuplexPlistKey.instanceSlug: "fake-work",
         ]
         XCTAssertEqual(
             LauncherLogic.config(from: info),
@@ -14,12 +14,12 @@ final class LauncherLogicTests: XCTestCase {
     }
 
     func testConfigParsingFailsWhenKeyMissing() {
-        XCTAssertNil(LauncherLogic.config(from: [DuplyPlistKey.targetBundleID: "com.x.fake"]))
+        XCTAssertNil(LauncherLogic.config(from: [DuplexPlistKey.targetBundleID: "com.x.fake"]))
     }
 
     func testDataDir() {
         let dir = LauncherLogic.dataDir(slug: "fake-work", homePath: "/tmp/h")
-        XCTAssertEqual(dir.path, "/tmp/h/Library/Application Support/Duply/fake-work/data")
+        XCTAssertEqual(dir.path, "/tmp/h/Library/Application Support/Duplex/fake-work/data")
     }
 
     func testExecArguments() {

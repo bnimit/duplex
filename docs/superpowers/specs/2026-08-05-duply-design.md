@@ -1,4 +1,4 @@
-# Duply — Multi-Instance Wrapper Generator for macOS
+# Duplex — Multi-Instance Wrapper Generator for macOS
 
 **Date:** 2026-08-05
 **Status:** Approved (rev 2 — core mechanism corrected after empirical validation)
@@ -9,14 +9,14 @@ macOS enforces one running instance per app: LaunchServices refuses a second lau
 
 ## Goal
 
-A small SwiftUI utility ("Duply") that generates lightweight wrapper `.app` bundles. Each wrapper launches an existing **Electron/Chromium-based** app as an independent instance with its own data namespace, enabling e.g. two Claude Desktop instances logged into different accounts simultaneously.
+A small SwiftUI utility ("Duplex") that generates lightweight wrapper `.app` bundles. Each wrapper launches an existing **Electron/Chromium-based** app as an independent instance with its own data namespace, enabling e.g. two Claude Desktop instances logged into different accounts simultaneously.
 
 ## Non-Goals (YAGNI)
 
 - Non-Electron apps (see "Why Electron-only" below; refused at creation with an explanation).
 - Sandboxed / Mac App Store apps.
 - Full copy + re-sign mode.
-- Menu bar extra, auto-update of Duply itself, Windows/Linux.
+- Menu bar extra, auto-update of Duplex itself, Windows/Linux.
 
 ## Core Technique (empirically validated on this machine, macOS 26.5)
 
@@ -53,30 +53,30 @@ the target bundle.
 
 Swift Package with three targets plus a bundling script:
 
-1. **DuplyKit** (library) — all logic, unit-tested: app inspection, slug/plist
+1. **DuplexKit** (library) — all logic, unit-tested: app inspection, slug/plist
    generation, wrapper assembly, icon badging, instance scanning, URL-scheme
    routing.
-2. **Duply** (executable) — SwiftUI, single window. Thin UI over DuplyKit.
-3. **duply-launcher** (executable) — tiny binary copied into every generated
+2. **Duplex** (executable) — SwiftUI, single window. Thin UI over DuplexKit.
+3. **duplex-launcher** (executable) — tiny binary copied into every generated
    wrapper.
-4. `scripts/build-app.sh` — assembles distributable `Duply.app` (embeds the
+4. `scripts/build-app.sh` — assembles distributable `Duplex.app` (embeds the
    launcher in its Resources) and ad-hoc signs it.
 
 There is no separate database: the instance registry is the wrapper bundles on
-disk plus their data folders. Duply discovers instances by scanning the wrapper
-output folder for bundles whose Info.plist carries Duply's custom keys.
+disk plus their data folders. Duplex discovers instances by scanning the wrapper
+output folder for bundles whose Info.plist carries Duplex's custom keys.
 
 ### Generated wrapper bundle (~200 KB)
 
 ```
 Claude Work.app/
 └── Contents/
-    ├── Info.plist        # CFBundleIdentifier: com.duply.<slug>
+    ├── Info.plist        # CFBundleIdentifier: com.duplex.<slug>
     │                     # CFBundleName: user-chosen name
     │                     # CFBundleURLTypes: copied from target (see URL routing)
-    │                     # custom keys: DuplyTargetBundleID, DuplyTargetPath,
-    │                     #              DuplyInstanceSlug, DuplyInstanceName
-    ├── MacOS/duply-launcher
+    │                     # custom keys: DuplexTargetBundleID, DuplexTargetPath,
+    │                     #              DuplexInstanceSlug, DuplexInstanceName
+    ├── MacOS/duplex-launcher
     └── Resources/icon.icns
 ```
 
@@ -87,11 +87,11 @@ no quarantine attribute, so Gatekeeper does not block them.
 
 ### Launcher behavior (runs on every instance launch)
 
-1. Read config from its own bundle's Info.plist (the Duply* keys).
-2. Resolve the target app: by `DuplyTargetBundleID` via LaunchServices first
-   (survives moves and updates), `DuplyTargetPath` as fallback.
+1. Read config from its own bundle's Info.plist (the Duplex* keys).
+2. Resolve the target app: by `DuplexTargetBundleID` via LaunchServices first
+   (survives moves and updates), `DuplexTargetPath` as fallback.
 3. Ensure the instance data dir exists:
-   `~/Library/Application Support/Duply/<slug>/data/`.
+   `~/Library/Application Support/Duplex/<slug>/data/`.
 4. `exec` the target's inner binary (`Contents/MacOS/<CFBundleExecutable>`)
    with `--user-data-dir=<data dir>` appended — not `open`, which would route
    to an already-running instance. `exec` keeps the wrapper's process identity,
@@ -107,8 +107,8 @@ also delete the data folder).
 
 **New Instance sheet** — target app picker (NSOpenPanel over /Applications),
 name field, icon choice: **colored badge** over the target's icon (default) or
-**custom image** (PNG/ICNS dropped in; Duply converts to icns). On create,
-Duply checks for `Electron Framework.framework` and refuses non-Electron apps
+**custom image** (PNG/ICNS dropped in; Duplex converts to icns). On create,
+Duplex checks for `Electron Framework.framework` and refuses non-Electron apps
 with a plain-English explanation.
 
 ## URL-Scheme / OAuth Login Routing
@@ -138,7 +138,7 @@ complete browser-based login.
 
 ## Testing
 
-- **Unit tests (DuplyKit):** Electron detection, slug generation/uniqueness,
+- **Unit tests (DuplexKit):** Electron detection, slug generation/uniqueness,
   Info.plist generation, icon badge compositing, instance scanning, launcher
   argument construction.
 - **E2E smoke script:** generate a wrapper around a synthesized fake "Electron

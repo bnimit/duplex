@@ -1,5 +1,5 @@
 import XCTest
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class AppInspectorTests: XCTestCase {
     var tmp: URL!

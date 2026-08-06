@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import DuplyKit
+import DuplexKit
 
 struct InstanceListView: View {
     @EnvironmentObject var state: AppState
@@ -64,7 +64,7 @@ struct InstanceListView: View {
         } message: {
             Text("“Delete Wrapper and Data” also removes this instance's profile (its login and settings).")
         }
-        .alert("Duply", isPresented: Binding(
+        .alert("Duplex", isPresented: Binding(
             get: { state.errorMessage != nil },
             set: { if !$0 { state.errorMessage = nil } })) {
             Button("OK", role: .cancel) {}

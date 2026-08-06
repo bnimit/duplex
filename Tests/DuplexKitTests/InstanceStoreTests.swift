@@ -1,5 +1,5 @@
 import XCTest
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class InstanceStoreTests: XCTestCase {
     var tmp: URL!
@@ -14,9 +14,9 @@ final class InstanceStoreTests: XCTestCase {
         _ = try gen.generate(spec: spec, icon: .badge(.blue), outputDir: tmp.appendingPathComponent("wrappers"))
     }
 
-    func testScanFindsOnlyDuplyWrappers() throws {
+    func testScanFindsOnlyDuplexWrappers() throws {
         try generateWrapper(named: "Fake Work", slug: "fake-work")
-        // A non-Duply .app in the same folder must be ignored.
+        // A non-Duplex .app in the same folder must be ignored.
         _ = try FixtureFactory.makeFakeApp(
             named: "Bystander", bundleID: "com.x.by", electron: false,
             in: tmp.appendingPathComponent("wrappers"))
@@ -28,7 +28,7 @@ final class InstanceStoreTests: XCTestCase {
         XCTAssertEqual(inst.slug, "fake-work")
         XCTAssertEqual(inst.targetBundleID, "com.x.fake")
         XCTAssertEqual(inst.urlSchemes, ["fake"])
-        XCTAssertEqual(inst.dataDir.path, "/tmp/h/Library/Application Support/Duply/fake-work/data")
+        XCTAssertEqual(inst.dataDir.path, "/tmp/h/Library/Application Support/Duplex/fake-work/data")
     }
 
     func testDataSize() throws {
@@ -62,8 +62,8 @@ final class InstanceStoreTests: XCTestCase {
     func testScanIgnoresHiddenStagingBundles() throws {
         try generateWrapper(named: "Fake Work", slug: "fake-work")
         let out = tmp.appendingPathComponent("wrappers")
-        // Simulate a crashed generate: hidden staging bundle with a valid Duply plist.
-        let staleContents = out.appendingPathComponent(".duply-staging-ghost.app/Contents")
+        // Simulate a crashed generate: hidden staging bundle with a valid Duplex plist.
+        let staleContents = out.appendingPathComponent(".duplex-staging-ghost.app/Contents")
         try FileManager.default.createDirectory(at: staleContents, withIntermediateDirectories: true)
         let app = try FixtureFactory.makeFakeApp(named: "Ghost", bundleID: "com.x.ghost", electron: true, in: tmp)
         let spec = InstanceSpec(name: "Ghost", slug: "ghost", target: try AppInspector.inspect(app))
@@ -78,11 +78,11 @@ final class InstanceStoreTests: XCTestCase {
         let contents = out.appendingPathComponent("Evil-\(UUID().uuidString.prefix(6)).app/Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
         let plist: [String: Any] = [
-            "CFBundleIdentifier": "com.duply.evil",
-            DuplyPlistKey.instanceSlug: slug,
-            DuplyPlistKey.targetBundleID: "com.x.fake",
-            DuplyPlistKey.targetPath: "/Applications/Fake.app",
-            DuplyPlistKey.instanceName: "Evil",
+            "CFBundleIdentifier": "com.duplex.evil",
+            DuplexPlistKey.instanceSlug: slug,
+            DuplexPlistKey.targetBundleID: "com.x.fake",
+            DuplexPlistKey.targetPath: "/Applications/Fake.app",
+            DuplexPlistKey.instanceName: "Evil",
         ]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: contents.appendingPathComponent("Info.plist"))

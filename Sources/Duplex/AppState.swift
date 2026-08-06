@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import DuplyKit
+import DuplexKit
 
 @MainActor
 final class AppState: ObservableObject {
@@ -20,23 +20,23 @@ final class AppState: ObservableObject {
         dataSizes = sizes
     }
 
-    /// The launcher binary: inside Duply.app it's bundled in Resources;
-    /// during `swift run` it sits next to the Duply executable in .build/.
+    /// The launcher binary: inside Duplex.app it's bundled in Resources;
+    /// during `swift run` it sits next to the Duplex executable in .build/.
     static func launcherURL() -> URL? {
-        if let bundled = Bundle.main.url(forResource: "duply-launcher", withExtension: nil) {
+        if let bundled = Bundle.main.url(forResource: "duplex-launcher", withExtension: nil) {
             return bundled
         }
         let sibling = URL(fileURLWithPath: CommandLine.arguments[0])
             .deletingLastPathComponent()
-            .appendingPathComponent("duply-launcher")
+            .appendingPathComponent("duplex-launcher")
         return FileManager.default.isExecutableFile(atPath: sibling.path) ? sibling : nil
     }
 
     func create(name: String, appURL: URL, icon: IconChoice, existingSlug: String? = nil) {
         do {
             guard let launcher = Self.launcherURL() else {
-                throw NSError(domain: "Duply", code: 1, userInfo: [
-                    NSLocalizedDescriptionKey: "duply-launcher binary not found. Build it with `swift build` or run from Duply.app."])
+                throw NSError(domain: "Duplex", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "duplex-launcher binary not found. Build it with `swift build` or run from Duplex.app."])
             }
             let target = try AppInspector.inspect(appURL)
             let slug = existingSlug ?? SlugGenerator.slug(from: name, existing: Set(instances.map(\.slug)))

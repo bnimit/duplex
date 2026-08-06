@@ -1,5 +1,5 @@
 import XCTest
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class WrapperPlistTests: XCTestCase {
     func testPlistContents() throws {
@@ -10,17 +10,17 @@ final class WrapperPlistTests: XCTestCase {
         let spec = InstanceSpec(name: "Fake Work", slug: "fake-work", target: target)
         let plist = WrapperPlist.plist(for: spec)
 
-        XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "com.duply.fake-work")
+        XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "com.duplex.fake-work")
         XCTAssertEqual(plist["CFBundleName"] as? String, "Fake Work")
         XCTAssertEqual(plist["CFBundleDisplayName"] as? String, "Fake Work")
-        XCTAssertEqual(plist["CFBundleExecutable"] as? String, "duply-launcher")
+        XCTAssertEqual(plist["CFBundleExecutable"] as? String, "duplex-launcher")
         XCTAssertEqual(plist["CFBundlePackageType"] as? String, "APPL")
         XCTAssertEqual(plist["CFBundleIconFile"] as? String, "icon")
         XCTAssertEqual(plist["LSMinimumSystemVersion"] as? String, "12.0")
-        XCTAssertEqual(plist[DuplyPlistKey.targetBundleID] as? String, "com.x.fake")
-        XCTAssertEqual(plist[DuplyPlistKey.targetPath] as? String, "/Applications/Fake.app")
-        XCTAssertEqual(plist[DuplyPlistKey.instanceSlug] as? String, "fake-work")
-        XCTAssertEqual(plist[DuplyPlistKey.instanceName] as? String, "Fake Work")
+        XCTAssertEqual(plist[DuplexPlistKey.targetBundleID] as? String, "com.x.fake")
+        XCTAssertEqual(plist[DuplexPlistKey.targetPath] as? String, "/Applications/Fake.app")
+        XCTAssertEqual(plist[DuplexPlistKey.instanceSlug] as? String, "fake-work")
+        XCTAssertEqual(plist[DuplexPlistKey.instanceName] as? String, "Fake Work")
 
         let urlTypes = plist["CFBundleURLTypes"] as? [[String: Any]]
         XCTAssertEqual(urlTypes?.count, 1)

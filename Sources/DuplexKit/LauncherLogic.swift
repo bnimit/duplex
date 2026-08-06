@@ -14,16 +14,16 @@ public struct LauncherConfig: Equatable {
 
 public enum LauncherLogic {
     public static func config(from info: [String: Any]) -> LauncherConfig? {
-        guard let bundleID = info[DuplyPlistKey.targetBundleID] as? String,
-              let path = info[DuplyPlistKey.targetPath] as? String,
-              let slug = info[DuplyPlistKey.instanceSlug] as? String
+        guard let bundleID = info[DuplexPlistKey.targetBundleID] as? String,
+              let path = info[DuplexPlistKey.targetPath] as? String,
+              let slug = info[DuplexPlistKey.instanceSlug] as? String
         else { return nil }
         return LauncherConfig(targetBundleID: bundleID, targetPath: path, slug: slug)
     }
 
     public static func dataDir(slug: String, homePath: String) -> URL {
         URL(fileURLWithPath: homePath)
-            .appendingPathComponent("Library/Application Support/Duply")
+            .appendingPathComponent("Library/Application Support/Duplex")
             .appendingPathComponent(slug)
             .appendingPathComponent("data")
     }

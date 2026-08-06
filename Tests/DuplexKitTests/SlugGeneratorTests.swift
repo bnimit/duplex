@@ -1,5 +1,5 @@
 import XCTest
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class SlugGeneratorTests: XCTestCase {
     func testBasicSlugging() {

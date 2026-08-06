@@ -28,7 +28,7 @@ public enum AppInspectorError: Error, Equatable, LocalizedError {
         case .missingKey(let key):
             return "The app's Info.plist is missing \(key)."
         case .notElectron(let name):
-            return "\(name) isn't an Electron-based app. Duply's isolation technique (--user-data-dir) only works for Electron/Chromium apps like Claude, Slack, Discord, Signal, or VS Code."
+            return "\(name) isn't an Electron-based app. Duplex's isolation technique (--user-data-dir) only works for Electron/Chromium apps like Claude, Slack, Discord, Signal, or VS Code."
         }
     }
 }

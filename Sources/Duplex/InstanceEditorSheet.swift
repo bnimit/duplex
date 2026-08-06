@@ -1,6 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import DuplyKit
+import DuplexKit
 
 struct InstanceEditorSheet: View {
     @EnvironmentObject var state: AppState

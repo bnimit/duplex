@@ -35,11 +35,11 @@ public enum InstanceStore {
             let plistURL = bundle.appendingPathComponent("Contents/Info.plist")
             guard let data = try? Data(contentsOf: plistURL),
                   let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-                  let slug = plist[DuplyPlistKey.instanceSlug] as? String, isValidSlug(slug),
-                  let targetBundleID = plist[DuplyPlistKey.targetBundleID] as? String,
-                  let targetPath = plist[DuplyPlistKey.targetPath] as? String
+                  let slug = plist[DuplexPlistKey.instanceSlug] as? String, isValidSlug(slug),
+                  let targetBundleID = plist[DuplexPlistKey.targetBundleID] as? String,
+                  let targetPath = plist[DuplexPlistKey.targetPath] as? String
             else { continue }
-            let name = plist[DuplyPlistKey.instanceName] as? String ?? slug
+            let name = plist[DuplexPlistKey.instanceName] as? String ?? slug
             var schemes: [String] = []
             if let urlTypes = plist["CFBundleURLTypes"] as? [[String: Any]] {
                 for entry in urlTypes {

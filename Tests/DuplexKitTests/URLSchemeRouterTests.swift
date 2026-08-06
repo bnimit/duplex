@@ -1,5 +1,5 @@
 import XCTest
-@testable import DuplyKit
+@testable import DuplexKit
 
 final class URLSchemeRouterTests: XCTestCase {
     func testCurrentHandlerForHTTPSExists() {
@@ -10,6 +10,6 @@ final class URLSchemeRouterTests: XCTestCase {
     }
 
     func testCurrentHandlerForNonsenseSchemeIsNil() {
-        XCTAssertNil(URLSchemeRouter.currentHandler(forScheme: "duply-definitely-not-registered-xyz"))
+        XCTAssertNil(URLSchemeRouter.currentHandler(forScheme: "duplex-definitely-not-registered-xyz"))
     }
 }

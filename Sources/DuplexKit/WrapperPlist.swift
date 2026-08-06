@@ -3,20 +3,20 @@ import Foundation
 public enum WrapperPlist {
     public static func plist(for spec: InstanceSpec) -> [String: Any] {
         var plist: [String: Any] = [
-            "CFBundleIdentifier": DuplyPlistKey.bundleIDPrefix + spec.slug,
+            "CFBundleIdentifier": DuplexPlistKey.bundleIDPrefix + spec.slug,
             "CFBundleName": spec.name,
             "CFBundleDisplayName": spec.name,
-            "CFBundleExecutable": "duply-launcher",
+            "CFBundleExecutable": "duplex-launcher",
             "CFBundlePackageType": "APPL",
             "CFBundleIconFile": "icon",
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
             "LSMinimumSystemVersion": "12.0",
             "NSHighResolutionCapable": true,
-            DuplyPlistKey.targetBundleID: spec.target.bundleID,
-            DuplyPlistKey.targetPath: spec.target.url.path,
-            DuplyPlistKey.instanceSlug: spec.slug,
-            DuplyPlistKey.instanceName: spec.name,
+            DuplexPlistKey.targetBundleID: spec.target.bundleID,
+            DuplexPlistKey.targetPath: spec.target.url.path,
+            DuplexPlistKey.instanceSlug: spec.slug,
+            DuplexPlistKey.instanceName: spec.name,
         ]
         if !spec.target.urlSchemes.isEmpty {
             plist["CFBundleURLTypes"] = [[

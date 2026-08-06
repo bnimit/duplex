@@ -1,18 +1,18 @@
 import AppKit
-import DuplyKit
+import DuplexKit
 
 func fail(_ message: String) -> Never {
     CFUserNotificationDisplayAlert(
         0, kCFUserNotificationCautionAlertLevel,
         nil, nil, nil,
-        "Duply" as CFString, message as CFString,
+        "Duplex" as CFString, message as CFString,
         nil, nil, nil, nil)
     exit(1)
 }
 
 guard let info = Bundle.main.infoDictionary,
       let config = LauncherLogic.config(from: info) else {
-    fail("This wrapper is missing its Duply configuration. Recreate the instance in Duply.")
+    fail("This wrapper is missing its Duplex configuration. Recreate the instance in Duplex.")
 }
 
 // Resolve the target app: prefer LaunchServices (survives moves/updates), fall back to the recorded path.

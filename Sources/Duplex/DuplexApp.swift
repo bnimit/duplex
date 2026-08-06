@@ -1,12 +1,12 @@
 import SwiftUI
 
 @main
-struct DuplyApp: App {
+struct DuplexApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var state = AppState()
 
     var body: some Scene {
-        WindowGroup("Duply") {
+        WindowGroup("Duplex") {
             InstanceListView()
                 .environmentObject(state)
                 .frame(minWidth: 560, minHeight: 360)
