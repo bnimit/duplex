@@ -90,9 +90,12 @@ public struct LemonSqueezyClient: LicenseClient {
 
     public func deactivate(key: String, activationID: String) async throws {
         let (data, status) = try await post("deactivate", ["license_key": key, "instance_id": activationID])
-        struct Response: Decodable { let deactivated: Bool }
-        guard let parsed = try? JSONDecoder().decode(Response.self, from: data), parsed.deactivated else {
+        struct Response: Decodable { let deactivated: Bool; let error: String? }
+        guard let parsed = try? JSONDecoder().decode(Response.self, from: data) else {
             throw LicenseClientError.network("could not deactivate (HTTP \(status))")
+        }
+        guard parsed.deactivated else {
+            throw LicenseClientError.keyInvalid(parsed.error ?? "The activation was not accepted (HTTP \(status)).")
         }
     }
 

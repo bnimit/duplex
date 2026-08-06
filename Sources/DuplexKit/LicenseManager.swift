@@ -80,7 +80,14 @@ public final class LicenseManager: ObservableObject {
     public func deactivate() async throws {
         if let key = defaults.string(forKey: Keys.key),
            let activationID = defaults.string(forKey: Keys.activationID) {
-            try await client.deactivate(key: key, activationID: activationID)
+            do {
+                try await client.deactivate(key: key, activationID: activationID)
+            } catch LicenseClientError.keyInvalid {
+                // The server explicitly reports this activation no longer exists
+                // (deactivated elsewhere). Local state must still clear.
+            }
+            // Transport failures (.network) propagate and skip the clear:
+            // we could not confirm anything with the server, so keep state.
         }
         clearPersisted()
         state = .free

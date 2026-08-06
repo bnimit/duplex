@@ -126,4 +126,27 @@ final class LicenseManagerTests: XCTestCase {
         XCTAssertEqual(m.state, .free)
         XCTAssertNil(defaults.string(forKey: "license.key"))
     }
+
+    func testDeactivateNetworkFailureKeepsLicense() async throws {
+        let client = StubClient()
+        let m = manager(client)
+        try await m.activate(key: "K-12345678")
+        client.deactivateError = LicenseClientError.network("offline")
+        do {
+            try await m.deactivate()
+            XCTFail("expected throw")
+        } catch {}
+        XCTAssertTrue(m.isLicensed)
+        XCTAssertNotNil(defaults.string(forKey: "license.key"))
+    }
+
+    func testDeactivateAlreadyGoneOnServerStillClears() async throws {
+        let client = StubClient()
+        let m = manager(client)
+        try await m.activate(key: "K-12345678")
+        client.deactivateError = LicenseClientError.keyInvalid("instance not found")
+        try await m.deactivate()
+        XCTAssertEqual(m.state, .free)
+        XCTAssertNil(defaults.string(forKey: "license.key"))
+    }
 }

@@ -78,4 +78,14 @@ final class LemonSqueezyClientTests: XCTestCase {
             guard case .network = e else { return XCTFail("expected .network, got \(e)") }
         } catch { XCTFail("wrong error: \(error)") }
     }
+    func testDeactivateExplicitRejectionThrowsKeyInvalid() async {
+        let client = LemonSqueezyClient(transport: StubTransport(
+            json: #"{"deactivated": false, "error": "instance not found"}"#, status: 404))
+        do {
+            try await client.deactivate(key: "K", activationID: "gone")
+            XCTFail("expected throw")
+        } catch let e as LicenseClientError {
+            XCTAssertEqual(e, .keyInvalid("instance not found"))
+        } catch { XCTFail("wrong error: \(error)") }
+    }
 }
