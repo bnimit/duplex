@@ -43,13 +43,15 @@ Run `open dist/Duplex.app` to launch it.
 
 ## Usage
 
-1. **Create an instance** — click "New Instance", pick the target app (e.g.
+1. **Create an instance** — click "New Instance…", pick the target app (e.g.
    Claude Desktop) from `/Applications`, give the instance a name (e.g.
    "Claude Work"), and choose an icon (a colored badge over the target's icon,
    or a custom image). Duplex generates and signs the wrapper bundle.
 2. **Launch it** — click Launch on the instance's row. The wrapper starts the
    target app with its own private data directory, so it opens to a fresh,
-   logged-out state the first time.
+   logged-out state the first time. If the original app is not running, start
+   it any time via the instance's … menu → Launch Original App — this works
+   even while clones are running.
 3. **Log in** — before logging in, use the instance's "Route Links Here"
    toggle so that OAuth/deep-link callbacks (e.g. `claude://...`) come back to
    this instance instead of the original app or another instance. Complete the
@@ -65,7 +67,7 @@ Run `open dist/Duplex.app` to launch it.
 | Target app uninstalled/moved | Launcher shows an alert (not a silent exit) |
 | Duplicate instance name | Slug auto-suffixed (`claude-work-2`) |
 | Same wrapper launched twice | Target's single-instance lock (keyed on data dir) focuses the existing window — harmless |
-| Original app launched from Dock/Finder while an instance is running | LaunchServices may focus the instance instead of launching the original (observed). Launching the original first avoids it |
+| Original app launched from Dock/Finder while an instance is running | LaunchServices may focus the instance instead. Use the instance's … menu → "Launch Original App" in Duplex (bypasses LaunchServices, so order never matters), or simply launch the original before the instance |
 | Delete instance | Confirm dialog; optional deletion of data folder |
 | Per-instance TCC prompts | Expected once per wrapper (mic/camera/notifications are per-bundle-ID) |
 | Preferences (`NSUserDefaults`) shared across instances | Accepted: Electron apps keep state in the profile dir, not in plists |
