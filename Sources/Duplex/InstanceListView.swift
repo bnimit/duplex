@@ -5,6 +5,7 @@ import DuplexKit
 struct InstanceListView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var license: LicenseManager
+    @Environment(\.colorScheme) private var colorScheme
     @State private var editorTarget: EditorTarget?
     @State private var deleteCandidate: Instance?
     @State private var searchText = ""
@@ -26,17 +27,15 @@ struct InstanceListView: View {
         }
     }
 
-    private let gridColumns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 14)]
+    private let gridColumns = [GridItem(.adaptive(minimum: 210, maximum: 300), spacing: 16)]
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
             content
-            Divider()
             footer
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(DuplexTheme.windowGradient(colorScheme).ignoresSafeArea())
         .sheet(item: $editorTarget) { target in
             switch target {
             case .new: InstanceEditorSheet(existing: nil)
@@ -79,9 +78,8 @@ struct InstanceListView: View {
             searchField
             newInstanceButton
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(.bar)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     private var searchField: some View {
@@ -102,9 +100,10 @@ struct InstanceListView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.7)))
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
         .frame(width: 190)
     }
 
@@ -118,7 +117,7 @@ struct InstanceListView: View {
         } label: {
             Label("New Instance", systemImage: "plus")
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(PillButtonStyle(compact: true))
         .keyboardShortcut("n")
         .help("Wrappers are saved to \(state.outputDir.path)")
     }
@@ -133,7 +132,7 @@ struct InstanceListView: View {
             noMatches
         } else {
             ScrollView {
-                LazyVGrid(columns: gridColumns, spacing: 14) {
+                LazyVGrid(columns: gridColumns, spacing: 16) {
                     ForEach(filteredInstances) { instance in
                         InstanceCard(
                             instance: instance,
@@ -141,28 +140,30 @@ struct InstanceListView: View {
                             onDelete: { deleteCandidate = instance })
                     }
                 }
-                .padding(14)
+                .padding(16)
             }
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             Image(nsImage: NSApp.applicationIconImage)
-                .resizable().frame(width: 88, height: 88)
+                .resizable().frame(width: 92, height: 92)
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
             Text("Run a second copy of any Electron app")
-                .font(.title2).bold()
+                .font(.system(size: 21, weight: .bold))
             Text("Create a wrapper to get a second Claude, Slack, or Discord with its own login and settings, while the original stays untouched.")
                 .font(.callout).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).frame(maxWidth: 400)
-            Button {
-                editorTarget = .new
-            } label: {
-                Label("New Instance", systemImage: "plus")
+            Button("Create Your First Instance") { editorTarget = .new }
+                .buttonStyle(PillButtonStyle())
+                .padding(.top, 8)
+            HStack(spacing: 5) {
+                Text("or press").font(.caption).foregroundStyle(.tertiary)
+                Keycap(label: "\u{2318}")
+                Keycap(label: "N")
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.top, 6)
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -190,9 +191,8 @@ struct InstanceListView: View {
                 .truncationMode(.middle)
                 .help("Wrappers are saved here")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
-        .background(.bar)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder
@@ -215,44 +215,48 @@ struct InstanceListView: View {
 
 // MARK: - Instance card
 
-/// One instance as a card: the ghost-and-copy icon pair (the original app's
-/// icon peeking from behind the instance's own), name, target, profile size,
-/// and the actions.
+/// One instance as a floating card: a pastel hero zone holding the
+/// ghost-and-copy icon pair (the original app peeking from behind the
+/// instance's own icon), then name, target, profile size, and actions.
 private struct InstanceCard: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.colorScheme) private var colorScheme
     let instance: Instance
     let onEdit: () -> Void
     let onDelete: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
+        VStack(spacing: 0) {
+            ZStack {
+                DuplexTheme.heroGradient(colorScheme)
                 iconPair
-                Spacer()
-                actionsMenu
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(instance.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                Text(targetAppName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Text(sizeText)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+            .frame(height: 92)
+            .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(instance.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    Text("\(targetAppName)  \u{00B7}  \(sizeText)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                HStack {
+                    Button("Launch") { state.launch(instance) }
+                        .buttonStyle(PillButtonStyle(compact: true))
+                    Spacer()
+                    actionsMenu
+                }
             }
-            Button {
-                state.launch(instance)
-            } label: {
-                Text("Launch").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
         }
-        .padding(14)
+        .clipShape(RoundedRectangle(cornerRadius: DuplexTheme.cardCorner, style: .continuous))
         .modifier(InstanceCardStyle(hovering: hovering))
         .onHover { hovering = $0 }
     }
@@ -262,13 +266,13 @@ private struct InstanceCard: View {
     private var iconPair: some View {
         ZStack(alignment: .bottomTrailing) {
             Image(nsImage: NSWorkspace.shared.icon(forFile: instance.targetPath))
-                .resizable().frame(width: 36, height: 36)
-                .opacity(0.35)
+                .resizable().frame(width: 38, height: 38)
+                .opacity(0.4)
             Image(nsImage: NSWorkspace.shared.icon(forFile: instance.wrapperURL.path))
-                .resizable().frame(width: 44, height: 44)
-                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .resizable().frame(width: 50, height: 50)
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
         }
-        .frame(width: 58, height: 52, alignment: .bottomTrailing)
+        .frame(width: 64, height: 58, alignment: .bottomTrailing)
     }
 
     private var actionsMenu: some View {

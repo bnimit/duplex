@@ -116,7 +116,7 @@ struct InstanceEditorSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(existing == nil ? "Create" : "Save") { submit() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(PillButtonStyle())
                     .keyboardShortcut(.defaultAction)
                     .disabled(appURL == nil || name.trimmingCharacters(in: .whitespaces).isEmpty
                               || (iconMode == .custom && customIconURL == nil))
