@@ -1,0 +1,56 @@
+Duplex Source-Available License v1.0
+
+Copyright (c) 2026 Nimit Bhandari (Aetrix Foundry)
+
+Duplex is source-available software, not open source. The source code is
+published so you can read it, learn from it, audit it, and build it for
+yourself. It is not published so that others can redistribute it.
+
+1. Grant
+
+Subject to the restrictions below, you may, free of charge:
+
+  a. view, clone, and study this source code;
+  b. modify it and build it for your own personal use on devices you own
+     or control;
+  c. submit issues, suggestions, and pull requests to the official
+     repository.
+
+2. Restrictions
+
+You may not, without prior written permission:
+
+  a. redistribute this software, in source or compiled form, modified or
+     unmodified, inside or outside app stores, free or paid;
+  b. offer this software, or a service substantially derived from it, to
+     third parties, whether commercially or free of charge;
+  c. remove or alter license enforcement, and distribute the result;
+  d. use the names "Duplex" or "Aetrix Foundry", or the Duplex icon, to
+     identify software not distributed by Aetrix Foundry.
+
+3. Official builds and licenses
+
+Notarized builds and license keys are sold by Aetrix Foundry
+(https://aetrixfoundry.com). Purchased license keys are governed by the
+terms presented at purchase in addition to this license.
+
+4. Contributions
+
+By submitting a contribution to the official repository you license it to
+the copyright holder under the terms of this license, and you affirm you
+have the right to do so.
+
+5. Termination
+
+Any violation of section 2 terminates your rights under this license
+automatically.
+
+6. No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.

@@ -77,3 +77,11 @@ Run `open dist/Duplex.app` to launch it.
 | Preferences (`NSUserDefaults`) shared across instances | Accepted: Electron apps keep state in the profile dir, not in plists |
 | Menu-bar app name | Electron apps draw their own menu-bar title, so it may still read the original app's name while the Dock shows the instance name |
 | Stale wrapper icon after target update | Edit → regenerate refreshes the icon |
+
+## License
+
+Duplex is source-available: read the code, learn from it, and build it for
+your own personal use. Redistribution of the source or of compiled builds is
+not permitted; see [LICENSE](LICENSE) for the exact terms. Notarized,
+supported builds with a license key are sold by
+[Aetrix Foundry](https://aetrixfoundry.com).
