@@ -22,64 +22,101 @@ struct InstanceEditorSheet: View {
     @State private var validationError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(existing == nil ? "New Instance" : "Edit “\(existing!.name)”")
-                .font(.title3).bold()
+        VStack(alignment: .leading, spacing: 16) {
+            Text(existing == nil ? "New Instance" : "Edit \u{201C}\(existing!.name)\u{201D}")
+                .font(.system(size: 15, weight: .semibold))
 
-            HStack {
-                Text(appURL?.lastPathComponent ?? "No app selected")
-                    .foregroundStyle(appURL == nil ? .secondary : .primary)
-                Spacer()
-                Button("Choose App…") { pickApp() }.disabled(existing != nil)
-            }
-
-            TextField("Instance name (e.g. Claude Work)", text: $name)
-                .textFieldStyle(.roundedBorder)
-
-            Picker("Icon", selection: $iconMode) {
-                Text("Original icon").tag(IconMode.original)
-                if existing != nil {
-                    Text("Keep current icon").tag(IconMode.keep)
-                }
-                Text("Colored badge").tag(IconMode.badge)
-                Text("Custom image").tag(IconMode.custom)
-            }
-            .pickerStyle(.segmented)
-
-            switch iconMode {
-            case .original:
-                Text("An exact copy of the target app's icon, at full resolution.")
-                    .font(.callout).foregroundStyle(.secondary)
-            case .keep:
-                Text("The wrapper's current icon will be left unchanged.")
-                    .font(.callout).foregroundStyle(.secondary)
-            case .custom:
-                HStack {
-                    Text(customIconURL?.lastPathComponent ?? "No image selected")
-                        .foregroundStyle(customIconURL == nil ? .secondary : .primary)
-                    Spacer()
-                    Button("Choose Image…") { pickImage() }
-                }
-            case .badge:
+            section("App") {
                 HStack(spacing: 8) {
-                    ForEach(BadgeColor.allCases) { color in
-                        Circle()
-                            .fill(swatch(color))
+                    if let appURL {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
+                            .resizable().frame(width: 22, height: 22)
+                    } else {
+                        Image(systemName: "app.dashed")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
                             .frame(width: 22, height: 22)
-                            .overlay(Circle().stroke(.primary, lineWidth: badgeColor == color ? 2 : 0))
-                            .onTapGesture { badgeColor = color }
+                    }
+                    Text(appURL?.deletingPathExtension().lastPathComponent ?? "No app selected")
+                        .foregroundStyle(appURL == nil ? .secondary : .primary)
+                    Spacer()
+                    Button("Choose App\u{2026}") { pickApp() }.disabled(existing != nil)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.05)))
+            }
+
+            section("Name") {
+                TextField("e.g. Claude Work", text: $name)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            section("Icon") {
+                Picker("Icon", selection: $iconMode) {
+                    Text("Original").tag(IconMode.original)
+                    if existing != nil {
+                        Text("Keep current").tag(IconMode.keep)
+                    }
+                    Text("Badge").tag(IconMode.badge)
+                    Text("Custom").tag(IconMode.custom)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                Group {
+                    switch iconMode {
+                    case .original:
+                        Text("An exact copy of the target app's icon, at full resolution.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    case .keep:
+                        Text("The wrapper's current icon will be left unchanged.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    case .custom:
+                        HStack {
+                            Text(customIconURL?.lastPathComponent ?? "No image selected")
+                                .font(.caption)
+                                .foregroundStyle(customIconURL == nil ? .secondary : .primary)
+                            Spacer()
+                            Button("Choose Image\u{2026}") { pickImage() }
+                                .controlSize(.small)
+                        }
+                    case .badge:
+                        HStack(spacing: 10) {
+                            ForEach(BadgeColor.allCases) { color in
+                                ZStack {
+                                    Circle().fill(swatch(color)).frame(width: 22, height: 22)
+                                    if badgeColor == color {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                                .overlay(Circle().stroke(Color.primary.opacity(
+                                    badgeColor == color ? 0.35 : 0), lineWidth: 1.5))
+                                .onTapGesture { badgeColor = color }
+                                .accessibilityLabel(Text(color.rawValue))
+                            }
+                            Spacer()
+                            Text("Drawn over the target app's icon")
+                                .font(.caption).foregroundStyle(.tertiary)
+                        }
                     }
                 }
+                .frame(minHeight: 24, alignment: .leading)
             }
 
             if let validationError {
-                Text(validationError).font(.caption).foregroundStyle(.red)
+                Label(validationError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
 
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(existing == nil ? "Create" : "Save") { submit() }
+                    .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(appURL == nil || name.trimmingCharacters(in: .whitespaces).isEmpty
                               || (iconMode == .custom && customIconURL == nil))
@@ -93,6 +130,17 @@ struct InstanceEditorSheet: View {
                 appURL = URL(fileURLWithPath: existing.targetPath)
                 iconMode = .keep
             }
+        }
+    }
+
+    @ViewBuilder
+    private func section(_ label: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .kerning(0.6)
+            content()
         }
     }
 

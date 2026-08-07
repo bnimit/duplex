@@ -10,7 +10,8 @@ struct DuplexApp: App {
             InstanceListView()
                 .environmentObject(state)
                 .environmentObject(state.license)
-                .frame(minWidth: 560, minHeight: 360)
+                .tint(DuplexTheme.indigo)
+                .frame(minWidth: 640, minHeight: 420)
                 .onAppear { state.refresh() }
                 .task {
                     await state.license.revalidateIfDue()
