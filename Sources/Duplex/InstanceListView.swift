@@ -4,6 +4,7 @@ import DuplexKit
 
 struct InstanceListView: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var license: LicenseManager
     @State private var editorTarget: EditorTarget?
     @State private var deleteCandidate: Instance?
 
@@ -38,11 +39,17 @@ struct InstanceListView: View {
             }
             Divider()
             HStack {
-                Text("Wrappers are saved to \(state.outputDir.path)")
-                    .font(.caption).foregroundStyle(.secondary)
+                licenseStatus
                 Spacer()
-                Button("New Instance…") { editorTarget = .new }
-                    .keyboardShortcut("n")
+                Button("New Instance…") {
+                    if state.canCreateNewInstance {
+                        editorTarget = .new
+                    } else {
+                        state.showLicenseSheet = true
+                    }
+                }
+                .keyboardShortcut("n")
+                .help("Wrappers are saved to \(state.outputDir.path)")
             }
             .padding(10)
         }
@@ -51,6 +58,9 @@ struct InstanceListView: View {
             case .new: InstanceEditorSheet(existing: nil)
             case .edit(let instance): InstanceEditorSheet(existing: instance)
             }
+        }
+        .sheet(isPresented: $state.showLicenseSheet) {
+            LicenseSheet()
         }
         .alert("Delete \(deleteCandidate?.name ?? "instance")?",
                isPresented: Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })) {
@@ -102,5 +112,19 @@ struct InstanceListView: View {
             .frame(width: 32)
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var licenseStatus: some View {
+        if license.isLicensed {
+            Text("Licensed").font(.caption).foregroundStyle(.secondary)
+        } else {
+            HStack(spacing: 4) {
+                Text("Free \u{00B7} \(min(state.instances.count, 1)) of 1 free instance used \u{00B7}")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Enter License\u{2026}") { state.showLicenseSheet = true }
+                    .buttonStyle(.link).font(.caption)
+            }
+        }
     }
 }

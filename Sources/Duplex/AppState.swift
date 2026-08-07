@@ -7,6 +7,18 @@ final class AppState: ObservableObject {
     @Published var instances: [Instance] = []
     @Published var dataSizes: [String: Int64] = [:]
     @Published var errorMessage: String?
+    @Published var showLicenseSheet = false
+
+    let license: LicenseManager
+
+    init(license: LicenseManager? = nil) {
+        self.license = license ?? LicenseManager()
+    }
+
+    var canCreateNewInstance: Bool {
+        LicenseGate.canCreate(existingCount: instances.count, isRegeneration: false,
+                              licensed: license.isLicensed)
+    }
 
     let outputDir = WrapperGenerator.defaultOutputDir()
     private var homePath: String { ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory() }
@@ -33,6 +45,12 @@ final class AppState: ObservableObject {
     }
 
     func create(name: String, appURL: URL, icon: IconChoice, existingSlug: String? = nil) {
+        guard LicenseGate.canCreate(existingCount: instances.count,
+                                    isRegeneration: existingSlug != nil,
+                                    licensed: license.isLicensed) else {
+            showLicenseSheet = true
+            return
+        }
         do {
             guard let launcher = Self.launcherURL() else {
                 throw NSError(domain: "Duplex", code: 1, userInfo: [

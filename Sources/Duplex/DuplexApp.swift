@@ -9,10 +9,23 @@ struct DuplexApp: App {
         WindowGroup("Duplex") {
             InstanceListView()
                 .environmentObject(state)
+                .environmentObject(state.license)
                 .frame(minWidth: 560, minHeight: 360)
                 .onAppear { state.refresh() }
+                .task {
+                    await state.license.revalidateIfDue()
+                    if let notice = state.license.revocationNotice {
+                        state.errorMessage = notice
+                        state.license.revocationNotice = nil
+                    }
+                }
         }
         .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("License\u{2026}") { state.showLicenseSheet = true }
+            }
+        }
     }
 }
 
