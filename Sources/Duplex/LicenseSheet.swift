@@ -25,7 +25,7 @@ struct LicenseSheet: View {
                     }.disabled(working)
                     Spacer()
                     Button("Done") { dismiss() }
-                        .buttonStyle(PillButtonStyle())
+                        .modifier(ProminentActionStyle())
                         .keyboardShortcut(.defaultAction)
                 }
             case .free:
@@ -48,7 +48,7 @@ struct LicenseSheet: View {
                     Button(working ? "Activating\u{2026}" : "Activate") {
                         Task { await activate() }
                     }
-                    .buttonStyle(PillButtonStyle())
+                    .modifier(ProminentActionStyle())
                     .keyboardShortcut(.defaultAction)
                     .disabled(working || keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
