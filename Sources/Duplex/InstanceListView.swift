@@ -52,26 +52,7 @@ struct InstanceListView: View {
     var body: some View {
         NavigationStack {
             content
-                .toolbar {
-                    ToolbarItem(placement: .navigation) {
-                        Image(nsImage: NSApp.applicationIconImage)
-                            .resizable().frame(width: 22, height: 22)
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            if state.canCreateNewInstance {
-                                editorTarget = .new
-                            } else {
-                                state.showLicenseSheet = true
-                            }
-                        } label: {
-                            Label("New Instance", systemImage: "plus")
-                        }
-                        .modifier(ProminentActionStyle())
-                        .keyboardShortcut("n")
-                        .help("Wrappers are saved to \(state.outputDir.path)")
-                    }
-                }
+                .toolbar { toolbarItems }
                 .searchable(text: $searchText, prompt: "Search instances")
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { statusBar }
@@ -104,6 +85,41 @@ struct InstanceListView: View {
         } message: {
             Text(state.errorMessage ?? "")
         }
+    }
+
+    // MARK: - Toolbar
+
+    private var toolbarIcon: some View {
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable().frame(width: 22, height: 22)
+    }
+
+    private var newInstanceToolbarButton: some View {
+        Button {
+            if state.canCreateNewInstance {
+                editorTarget = .new
+            } else {
+                state.showLicenseSheet = true
+            }
+        } label: {
+            Label("New Instance", systemImage: "plus")
+        }
+        .modifier(ProminentActionStyle())
+        .keyboardShortcut("n")
+        .help("Wrappers are saved to \(state.outputDir.path)")
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarItems: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            // The bare icon is decorative: opt it out of Liquid Glass's
+            // per-item capsule background.
+            ToolbarItem(placement: .navigation) { toolbarIcon }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .navigation) { toolbarIcon }
+        }
+        ToolbarItem(placement: .primaryAction) { newInstanceToolbarButton }
     }
 
     // MARK: - Content
