@@ -53,6 +53,14 @@ struct InstanceListView: View {
         NavigationStack {
             content
                 .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        HStack(spacing: 7) {
+                            Image(nsImage: NSApp.applicationIconImage)
+                                .resizable().frame(width: 22, height: 22)
+                            Text("Duplex")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             if state.canCreateNewInstance {
@@ -123,7 +131,16 @@ struct InstanceListView: View {
                 }
             }
             .listStyle(.inset)
-            .scrollContentBackground(.automatic)
+            .scrollContentBackground(.hidden)
+            .background(alignment: .bottomTrailing) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 300, height: 300)
+                    .opacity(0.05)
+                    .padding(20)
+                    .allowsHitTesting(false)
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
         }
     }
 
