@@ -54,12 +54,8 @@ struct InstanceListView: View {
             content
                 .toolbar {
                     ToolbarItem(placement: .navigation) {
-                        HStack(spacing: 7) {
-                            Image(nsImage: NSApp.applicationIconImage)
-                                .resizable().frame(width: 22, height: 22)
-                            Text("Duplex")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
+                        Image(nsImage: NSApp.applicationIconImage)
+                            .resizable().frame(width: 22, height: 22)
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button {
