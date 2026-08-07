@@ -7,6 +7,8 @@ struct InstanceEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let existing: Instance?
+    /// When set (column ＋ button), the app picker starts pre-filled with this app.
+    var prefillApp: URL? = nil
 
     private enum IconMode: Hashable {
         case keep, original, badge, custom
@@ -129,6 +131,11 @@ struct InstanceEditorSheet: View {
                 name = existing.name
                 appURL = URL(fileURLWithPath: existing.targetPath)
                 iconMode = .keep
+            } else if let prefillApp {
+                appURL = prefillApp
+                if name.isEmpty {
+                    name = prefillApp.deletingPathExtension().lastPathComponent + " 2"
+                }
             }
         }
     }

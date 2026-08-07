@@ -12,10 +12,12 @@ struct InstanceListView: View {
 
     enum EditorTarget: Identifiable {
         case new
+        case newForApp(URL)
         case edit(Instance)
         var id: String {
             switch self {
             case .new: return "new"
+            case .newForApp(let url): return "new-\(url.path)"
             case .edit(let i): return i.slug
             }
         }
@@ -27,18 +29,37 @@ struct InstanceListView: View {
         }
     }
 
-    private let gridColumns = [GridItem(.adaptive(minimum: 210, maximum: 300), spacing: 16)]
+    /// Trello-style columns: one per target app.
+    private struct AppGroup: Identifiable {
+        let id: String
+        let appName: String
+        let appURL: URL
+        let instances: [Instance]
+    }
+
+    private var groups: [AppGroup] {
+        Dictionary(grouping: filteredInstances, by: \.targetBundleID)
+            .map { bundleID, members in
+                let path = members[0].targetPath
+                return AppGroup(
+                    id: bundleID,
+                    appName: URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent,
+                    appURL: URL(fileURLWithPath: path),
+                    instances: members.sorted { $0.name < $1.name })
+            }
+            .sorted { $0.appName < $1.appName }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             content
-            footer
         }
         .background(DuplexTheme.windowGradient(colorScheme).ignoresSafeArea())
         .sheet(item: $editorTarget) { target in
             switch target {
             case .new: InstanceEditorSheet(existing: nil)
+            case .newForApp(let url): InstanceEditorSheet(existing: nil, prefillApp: url)
             case .edit(let instance): InstanceEditorSheet(existing: instance)
             }
         }
@@ -66,20 +87,48 @@ struct InstanceListView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Header (bold title row on the backdrop)
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(nsImage: NSApp.applicationIconImage)
-                .resizable().frame(width: 22, height: 22)
+                .resizable().frame(width: 28, height: 28)
+                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
             Text("Duplex")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 19, weight: .bold))
+                .foregroundStyle(headerText)
+            licenseChip
             Spacer()
             searchField
             newInstanceButton
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
+    }
+
+    private var headerText: Color {
+        colorScheme == .dark ? Color.white : Color.black.opacity(0.82)
+    }
+
+    private var licenseChip: some View {
+        Button { state.showLicenseSheet = true } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(license.isLicensed ? DuplexTheme.indigo : DuplexTheme.coral)
+                    .frame(width: 6, height: 6)
+                Text(license.isLicensed
+                     ? "Licensed"
+                     : "Free \u{00B7} \(min(state.instances.count, 1))/1")
+                    .font(.system(size: 10.5, weight: .semibold))
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(.ultraThinMaterial))
+        }
+        .buttonStyle(.plain)
+        .help(license.isLicensed
+              ? "Manage your license"
+              : "One instance is free; a license unlocks unlimited. Click to enter a key.")
     }
 
     private var searchField: some View {
@@ -90,6 +139,7 @@ struct InstanceListView: View {
             TextField("Search", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
+                .frame(width: 130)
                 .disabled(state.instances.isEmpty)
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
@@ -100,11 +150,9 @@ struct InstanceListView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.7)))
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06)))
-        .frame(width: 190)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(.ultraThinMaterial))
     }
 
     private var newInstanceButton: some View {
@@ -131,13 +179,10 @@ struct InstanceListView: View {
         } else if filteredInstances.isEmpty {
             noMatches
         } else {
-            ScrollView {
-                LazyVGrid(columns: gridColumns, spacing: 16) {
-                    ForEach(filteredInstances) { instance in
-                        InstanceCard(
-                            instance: instance,
-                            onEdit: { editorTarget = .edit(instance) },
-                            onDelete: { deleteCandidate = instance })
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(groups) { group in
+                        column(for: group)
                     }
                 }
                 .padding(16)
@@ -145,13 +190,59 @@ struct InstanceListView: View {
         }
     }
 
+    private func column(for group: AppGroup) -> some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 7) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: group.appURL.path))
+                    .resizable().frame(width: 18, height: 18)
+                Text(group.appName)
+                    .font(.system(size: 13, weight: .semibold))
+                Text("\(group.instances.count)")
+                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.07)))
+                Spacer()
+                Button {
+                    if state.canCreateNewInstance {
+                        editorTarget = .newForApp(group.appURL)
+                    } else {
+                        state.showLicenseSheet = true
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("New \(group.appName) instance")
+            }
+            .padding(.horizontal, 4)
+
+            ForEach(group.instances) { instance in
+                InstanceCard(
+                    instance: instance,
+                    tagName: group.appName,
+                    onEdit: { editorTarget = .edit(instance) },
+                    onDelete: { deleteCandidate = instance })
+            }
+        }
+        .padding(10)
+        .frame(width: 252)
+        .background(
+            RoundedRectangle(cornerRadius: DuplexTheme.cardCorner + 4, style: .continuous)
+                .fill(.ultraThinMaterial))
+    }
+
     private var emptyState: some View {
         VStack(spacing: 14) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable().frame(width: 92, height: 92)
-                .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
             Text("Run a second copy of any Electron app")
                 .font(.system(size: 21, weight: .bold))
+                .foregroundStyle(headerText)
             Text("Create a wrapper to get a second Claude, Slack, or Discord with its own login and settings, while the original stays untouched.")
                 .font(.callout).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).frame(maxWidth: 400)
@@ -159,12 +250,16 @@ struct InstanceListView: View {
                 .buttonStyle(PillButtonStyle())
                 .padding(.top, 8)
             HStack(spacing: 5) {
-                Text("or press").font(.caption).foregroundStyle(.tertiary)
+                Text("or press").font(.caption).foregroundStyle(.secondary)
                 Keycap(label: "\u{2318}")
                 Keycap(label: "N")
             }
             .padding(.top, 2)
         }
+        .padding(28)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -177,102 +272,62 @@ struct InstanceListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    // MARK: - Footer
-
-    private var footer: some View {
-        HStack(spacing: 6) {
-            licenseStatus
-            Spacer()
-            Text(state.outputDir.path)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help("Wrappers are saved here")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-
-    @ViewBuilder
-    private var licenseStatus: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(license.isLicensed ? DuplexTheme.indigo : DuplexTheme.coral)
-                .frame(width: 7, height: 7)
-            if license.isLicensed {
-                Text("Licensed").font(.caption).foregroundStyle(.secondary)
-            } else {
-                Text("Free \u{00B7} \(min(state.instances.count, 1)) of 1 free instances used")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Enter License\u{2026}") { state.showLicenseSheet = true }
-                    .buttonStyle(.link).font(.caption)
-            }
-        }
-    }
 }
 
 // MARK: - Instance card
 
-/// One instance as a floating card: a pastel hero zone holding the
-/// ghost-and-copy icon pair (the original app peeking from behind the
-/// instance's own icon), then name, target, profile size, and actions.
+/// One instance as a Trello-style card: tag pill, icon thumb zone, title,
+/// meta chips, then Launch and the actions menu.
 private struct InstanceCard: View {
     @EnvironmentObject var state: AppState
-    @Environment(\.colorScheme) private var colorScheme
     let instance: Instance
+    let tagName: String
     let onEdit: () -> Void
     let onDelete: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                DuplexTheme.heroGradient(colorScheme)
-                iconPair
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                TagPill(text: tagName, tint: DuplexTheme.tagTint(for: instance.targetBundleID))
+                Spacer()
+                actionsMenu
             }
-            .frame(height: 92)
-            .frame(maxWidth: .infinity)
-
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(instance.name)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                    Text("\(targetAppName)  \u{00B7}  \(sizeText)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+            thumbZone
+            Text(instance.name)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
+            HStack(spacing: 10) {
+                MetaChip(systemImage: "internaldrive", text: sizeText)
+                if !instance.urlSchemes.isEmpty {
+                    MetaChip(systemImage: "link", text: instance.urlSchemes[0] + "://")
                 }
-                HStack {
-                    Button("Launch") { state.launch(instance) }
-                        .buttonStyle(PillButtonStyle(compact: true))
-                    Spacer()
-                    actionsMenu
-                }
+                Spacer()
+                Button("Launch") { state.launch(instance) }
+                    .buttonStyle(PillButtonStyle(compact: true))
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
         }
-        .clipShape(RoundedRectangle(cornerRadius: DuplexTheme.cardCorner, style: .continuous))
+        .padding(12)
         .modifier(InstanceCardStyle(hovering: hovering))
         .onHover { hovering = $0 }
     }
 
-    /// The signature mark: a faded miniature of the original app behind the
-    /// instance's icon, the same gesture as the Duplex app icon.
-    private var iconPair: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: instance.targetPath))
-                .resizable().frame(width: 38, height: 38)
-                .opacity(0.4)
-            Image(nsImage: NSWorkspace.shared.icon(forFile: instance.wrapperURL.path))
-                .resizable().frame(width: 50, height: 50)
-                .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
+    /// The media thumb: a quiet zone holding the ghost-and-copy icon pair.
+    private var thumbZone: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.primary.opacity(0.045))
+            ZStack(alignment: .bottomTrailing) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: instance.targetPath))
+                    .resizable().frame(width: 34, height: 34)
+                    .opacity(0.4)
+                Image(nsImage: NSWorkspace.shared.icon(forFile: instance.wrapperURL.path))
+                    .resizable().frame(width: 46, height: 46)
+                    .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
+            }
+            .frame(width: 60, height: 54, alignment: .bottomTrailing)
         }
-        .frame(width: 64, height: 58, alignment: .bottomTrailing)
+        .frame(height: 74)
     }
 
     private var actionsMenu: some View {
@@ -287,16 +342,12 @@ private struct InstanceCard: View {
             Divider()
             Button("Delete\u{2026}", role: .destructive) { onDelete() }
         } label: {
-            Image(systemName: "ellipsis.circle")
-                .font(.system(size: 14))
+            Image(systemName: "ellipsis")
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
         .menuStyle(.borderlessButton)
-        .frame(width: 24)
-    }
-
-    private var targetAppName: String {
-        URL(fileURLWithPath: instance.targetPath).deletingPathExtension().lastPathComponent
+        .frame(width: 22)
     }
 
     private var sizeText: String {
