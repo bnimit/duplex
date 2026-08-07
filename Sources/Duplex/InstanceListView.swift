@@ -151,7 +151,7 @@ struct InstanceListView: View {
             Text("Licensed").font(.caption).foregroundStyle(.secondary)
         } else {
             HStack(spacing: 4) {
-                Text("Free \u{00B7} \(min(state.instances.count, 1)) of 1 free instance used \u{00B7}")
+                Text("Free \u{00B7} \(min(state.instances.count, 1)) of 1 free instances used \u{00B7}")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Enter License\u{2026}") { state.showLicenseSheet = true }
                     .buttonStyle(.link).font(.caption)

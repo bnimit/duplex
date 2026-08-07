@@ -34,7 +34,7 @@ struct LicenseSheet: View {
                 if let errorText {
                     Text(errorText).font(.caption).foregroundStyle(.red)
                 }
-                Text("Privacy: only the key itself is sent to the license server, and only when you activate or Duplex revalidates.")
+                Text("Privacy: only the key and this Mac's name are sent to the license server, and only when you activate or Duplex revalidates.")
                     .font(.caption2).foregroundStyle(.secondary)
                 HStack {
                     Link("Buy for $5", destination: DuplexConfig.checkoutURL)
@@ -58,6 +58,12 @@ struct LicenseSheet: View {
         do {
             try await license.activate(key: keyInput)
             errorText = nil
+        } catch let clientError as LicenseClientError {
+            if case .keyInvalid(let message) = clientError {
+                errorText = message + " If you have hit your activation limit, open Duplex on another Mac, choose License… from the app menu, and click Deactivate This Mac, then try again here."
+            } else {
+                errorText = clientError.localizedDescription
+            }
         } catch {
             errorText = error.localizedDescription
         }
