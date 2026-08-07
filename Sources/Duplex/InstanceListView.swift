@@ -7,6 +7,7 @@ struct InstanceListView: View {
     @EnvironmentObject var license: LicenseManager
     @State private var editorTarget: EditorTarget?
     @State private var deleteCandidate: Instance?
+    @State private var searchText = ""
 
     enum EditorTarget: Identifiable {
         case new
@@ -19,21 +20,51 @@ struct InstanceListView: View {
         }
     }
 
+    private var filteredInstances: [Instance] {
+        state.instances.filter {
+            InstanceFilter.matches(name: $0.name, targetPath: $0.targetPath, query: searchText)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable().frame(width: 20, height: 20)
+                Text("Duplex").font(.headline)
+                Spacer()
+                TextField("Search instances", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+                    .disabled(state.instances.isEmpty)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            Divider()
             if state.instances.isEmpty {
-                // Not ContentUnavailableView: that's macOS 14+, our floor is 13.
-                VStack(spacing: 8) {
-                    Image(systemName: "square.on.square.dashed")
-                        .font(.system(size: 40)).foregroundStyle(.secondary)
-                    Text("No instances yet").font(.title3).bold()
-                    Text("Create a wrapper to run a second copy of an Electron app — like a second Claude with its own login.")
+                VStack(spacing: 10) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable().frame(width: 96, height: 96)
+                    Text("Run a second copy of any Electron app").font(.title3).bold()
+                    Text("Create a wrapper to get a second Claude, Slack, or Discord with its own login and settings, while the original stays untouched.")
                         .font(.callout).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center).frame(maxWidth: 380)
+                        .multilineTextAlignment(.center).frame(maxWidth: 400)
+                    Button("New Instance…") { editorTarget = .new }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 4)
+                    Text("Wrappers are saved to \(state.outputDir.path)")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filteredInstances.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 32)).foregroundStyle(.secondary)
+                    Text("No instances match \u{201C}\(searchText)\u{201D}")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(state.instances) { instance in
+                List(filteredInstances) { instance in
                     row(instance)
                 }
             }
