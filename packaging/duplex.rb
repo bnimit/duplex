@@ -15,7 +15,6 @@ cask "duplex" do
   desc "Run multiple isolated instances of Electron apps, each with its own login"
   homepage "https://aetrixfoundry.com/"
 
-  depends_on macos: ">= :ventura"
 
   app "Duplex.app"
 
