@@ -10,6 +10,18 @@ launches the target app's own binary with a private data directory, so every
 instance gets its own cookies, local storage, and login session while sharing
 the same underlying installation.
 
+## Install
+
+```
+brew tap bnimit/tap
+brew trust bnimit/tap
+brew install --cask duplex
+```
+
+(`brew trust` is a one-time step Homebrew requires for third-party taps.)
+Or download the notarized zip from the
+[latest release](https://github.com/bnimit/duplex/releases/latest).
+
 ## How it works
 
 Each wrapper Duplex creates is a lightweight bundle that stores a reference to
