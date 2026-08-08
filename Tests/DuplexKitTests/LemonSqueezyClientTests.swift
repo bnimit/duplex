@@ -13,10 +13,17 @@ private struct StubTransport: HTTPTransport {
         onPost?(url, form)
         return response
     }
+    func postJSON(url: URL, json: [String: String]) async throws -> (Data, Int) {
+        onPost?(url, json)
+        return response
+    }
 }
 
 private struct FailingTransport: HTTPTransport {
     func post(url: URL, form: [String: String]) async throws -> (Data, Int) {
+        throw URLError(.notConnectedToInternet)
+    }
+    func postJSON(url: URL, json: [String: String]) async throws -> (Data, Int) {
         throw URLError(.notConnectedToInternet)
     }
 }

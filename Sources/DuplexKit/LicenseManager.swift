@@ -29,7 +29,7 @@ public final class LicenseManager: ObservableObject {
     private let defaults: UserDefaults
     private let now: () -> Date
 
-    public init(client: LicenseClient = LemonSqueezyClient(),
+    public init(client: LicenseClient = DodoLicenseClient(),
                 defaults: UserDefaults = .standard,
                 now: @escaping () -> Date = Date.init) {
         self.client = client

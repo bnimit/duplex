@@ -30,10 +30,23 @@ public protocol LicenseClient: Sendable {
 public protocol HTTPTransport: Sendable {
     /// Form-encoded POST; returns (body, HTTP status).
     func post(url: URL, form: [String: String]) async throws -> (Data, Int)
+    /// JSON POST; returns (body, HTTP status).
+    func postJSON(url: URL, json: [String: String]) async throws -> (Data, Int)
 }
 
 public struct URLSessionTransport: HTTPTransport {
     public init() {}
+
+    public func postJSON(url: URL, json: [String: String]) async throws -> (Data, Int) {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(json)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+    }
+
     public func post(url: URL, form: [String: String]) async throws -> (Data, Int) {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
