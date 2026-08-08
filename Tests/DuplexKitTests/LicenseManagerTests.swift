@@ -104,6 +104,19 @@ final class LicenseManagerTests: XCTestCase {
         XCTAssertNil(m.revocationNotice)
     }
 
+    func testClockRollbackTriggersImmediateRevalidation() async throws {
+        let client = StubClient()
+        var now = Date(timeIntervalSince1970: 1_000_000)
+        let m = LicenseManager(client: client, defaults: defaults, now: { now })
+        try await m.activate(key: "K-12345678")
+        // Clock rolled BACK an hour: rollback must make revalidation due,
+        // not dodge it.
+        now = now.addingTimeInterval(-3600)
+        await m.revalidateIfDue()
+        XCTAssertEqual(client.validateCalls, 1)
+        XCTAssertTrue(m.isLicensed)
+    }
+
     func testRevalidateRevokedDowngradesWithNotice() async throws {
         let client = StubClient()
         var now = Date(timeIntervalSince1970: 1_000_000)

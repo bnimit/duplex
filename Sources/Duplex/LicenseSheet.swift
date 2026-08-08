@@ -31,7 +31,7 @@ struct LicenseSheet: View {
             case .free:
                 headerRow(icon: "sparkles", tint: DuplexTheme.coral,
                           title: "Unlock unlimited instances",
-                          subtitle: "Your first instance is free forever. A $5 license unlocks unlimited instances on up to 3 Macs.")
+                          subtitle: "Your first instance is free forever. A $5 license unlocks unlimited instances on up to 2 Macs.")
                 TextField("License key (from your purchase email)", text: $keyInput)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12, design: .monospaced))

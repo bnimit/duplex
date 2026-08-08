@@ -61,7 +61,11 @@ public final class LicenseManager: ObservableObject {
     public func revalidateIfDue() async {
         guard case .licensed = state, let key = defaults.string(forKey: Keys.key) else { return }
         let last = defaults.object(forKey: Keys.lastValidated) as? Date ?? .distantPast
-        guard now().timeIntervalSince(last) >= Self.revalidationInterval else { return }
+        // Due when the interval has passed, OR when the clock has gone
+        // backwards (now < last): a rolled-back clock triggers the very
+        // revalidation it would otherwise dodge.
+        let elapsed = now().timeIntervalSince(last)
+        guard elapsed >= Self.revalidationInterval || elapsed < 0 else { return }
         do {
             let valid = try await client.validate(
                 key: key, activationID: defaults.string(forKey: Keys.activationID))
