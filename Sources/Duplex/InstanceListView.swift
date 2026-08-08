@@ -56,6 +56,13 @@ struct InstanceListView: View {
                 .searchable(text: $searchText, prompt: "Search instances")
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { statusBar }
+        // Profile sizes are cached (walking large profiles per repaint is too
+        // slow), so re-scan whenever the app comes back to the foreground:
+        // returning from a freshly launched instance shows its real size.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            state.refresh()
+        }
         .sheet(item: $editorTarget) { target in
             switch target {
             case .new: InstanceEditorSheet(existing: nil)
