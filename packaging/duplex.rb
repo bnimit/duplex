@@ -8,7 +8,7 @@
 #   brew install --cask duplex
 cask "duplex" do
   version "1.1"
-  sha256 "REPLACE_WITH_SHA256_FROM_RELEASE_SCRIPT"
+  sha256 "fe36525825f4c56c392f68b5de24dadc6848bcf9673257244c53c5d9ac228420"
 
   url "https://github.com/bnimit/duplex/releases/download/v#{version}/Duplex-#{version}.zip"
   name "Duplex"
