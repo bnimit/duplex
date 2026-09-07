@@ -42,6 +42,11 @@ product exists so several instances run at once.
   removed from the clone or Finder ignores our `icon.icns`.
 - Chromium requires parent and helper processes to share a signing identity;
   ad-hoc for all of them satisfies it.
+- A clone inherits the original's extended attributes. `com.apple.provenance`
+  cannot be removed but does not block an ad-hoc clone launched through
+  LaunchServices (verified with `open`). `com.apple.quarantine`, present on
+  dmg-installed apps that have not yet self-updated, would make Gatekeeper
+  refuse the ad-hoc clone, and it is removable.
 
 ## Design
 
@@ -63,21 +68,33 @@ in, exactly as today. The build step changes:
    - add the Duplex keys: `DuplexTargetBundleID`, `DuplexTargetPath`,
      `DuplexInstanceSlug`, `DuplexInstanceName`, plus two new keys
      `DuplexFormatVersion = 2` and `DuplexSourceVersion` = the target's
-     `CFBundleVersion` at clone time.
+     `CFBundleShortVersionString` and `CFBundleVersion` joined as
+     `"<short> (<build>)"` at clone time, so either changing triggers a
+     re-sync.
    Everything else (notably `CFBundleName`, from which Electron derives the
    helper app names, and `ElectronAsarIntegrity`) is left as is.
 3. Delete `Contents/embedded.provisionprofile` (meaningless under ad-hoc
-   signing; its entitlements cannot be honoured anyway).
+   signing; its entitlements cannot be honoured anyway). Remove
+   `com.apple.quarantine` recursively from the clone; Duplex created these
+   files locally, so the flag would only ever be an inherited artefact.
+   Also delete `UTExportedTypeDeclarations` and `UTImportedTypeDeclarations`
+   from the plist if present (Claude has none; other apps may).
 4. Copy the launcher to `Contents/MacOS/duplex-launcher` (0755). The original
    executable stays as its sibling.
 5. Write `Contents/Resources/icon.icns` using the existing `IconChoice` logic
    (`.original` copies the target's own icns; `.keepExisting` copies the old
    wrapper's icon during regeneration).
 6. Sign, ad-hoc, innermost first: every `Contents/Frameworks/*.app` helper,
-   the original executable in `Contents/MacOS`, `duplex-launcher`, then the
-   bundle itself without `--deep`. Frameworks keep their vendor signature.
+   every executable file in `Contents/MacOS` (the original app's binary and
+   `duplex-launcher`; some Electron apps ship more than one), then the bundle
+   itself without `--deep`. Frameworks keep their vendor signature.
 7. Swap staging into place (existing stage-and-swap, `destinationOccupied`
    protection unchanged) and `LSRegisterURL`.
+
+Generation takes about two seconds on the clone path and can take tens of
+seconds on the copy fallback, so `AppState.create` runs the generator off the
+main actor and exposes an `isBusy` state; the list view disables the create and
+edit controls and shows a small progress indicator while it is set.
 
 Pure logic lives in a new `InstancePlist` (patch a plist dictionary given a
 spec and source version; testable without a filesystem). `WrapperPlist` is
@@ -106,9 +123,24 @@ stages a fresh clone of the updated original and swaps it in at the same path.
 The running launcher's inode survives the swap; after it returns, the launcher
 execs the new sibling executable. Cost is about two seconds, no UI.
 
+Two launchers for the same slug could race (a fast double click before
+LaunchServices sees the first process). The re-sync step takes an exclusive
+`flock` on `<home>/Library/Application Support/Duplex/<slug>/resync.lock`; the
+loser re-reads the bundle after the lock is released and finds nothing to do.
+
 If regeneration fails (not writable, target vanished mid-way), the launcher
 logs to stderr and execs the existing, stale but self-consistent clone. Only
 if that exec also fails does it show the existing failure alert.
+
+Between the original updating and the instance's next launch, Claude's
+updater inside the instance may download an update it cannot install. That is
+wasted bandwidth once per launch of an outdated instance, and nothing more.
+
+The launcher copied into a regenerated clone is the running launcher itself,
+so instances do not need Duplex.app installed to follow updates. Duplex.app
+refreshes the launcher in all instances only when `DuplexFormatVersion`
+changes, not on every Duplex release, to avoid needless re-signing (each
+re-sign can make macOS re-ask an instance for permissions).
 
 ### 4. Migration of 1.1 instances
 
@@ -127,6 +159,14 @@ reported through the existing `errorMessage` path.
 
 - Remove `AppState.launchOriginal` and its "Launch Original App" menu item.
   Launching the original from the Dock now works.
+- Distinct identities make "is this instance running" answerable
+  (`NSRunningApplication.runningApplications(withBundleIdentifier:)`).
+  Regenerating, renaming, or deleting a running clone would pull the bundle
+  out from under its live process, so `AppState` refuses those actions while
+  the instance runs and offers "Quit and continue", which terminates the
+  instance and then proceeds. Migration of 1.1 wrappers is exempt: their
+  process is the real Claude binary in the original bundle, so replacing the
+  wrapper is harmless.
 - "Route Links Here" stays and now delivers callbacks to the right running
   instance.
 - Version 1.2.0, `CFBundleVersion` 6.
@@ -139,7 +179,7 @@ and the "Launch Original App" step; add quirks: instances show full app size in
 Finder but share disk with the original (APFS clones); macOS may re-ask an
 instance for permissions such as Desktop access after Claude updates because
 the instance is re-signed; after upgrading to 1.2 you sign in again once per
-instance; Mac App Store builds of apps are not supported (receipt validation).
+instance (the profile folder is kept, only the session encryption changed); Mac App Store builds of apps are not supported (receipt validation).
 
 Site /duplex: fix the "No patching, no re-signing" card to describe clones
 honestly. Terms: "does not include or redistribute those third party apps, and
@@ -160,6 +200,10 @@ zip, `gh release create v1.2.0`, update sha256 in `packaging/duplex.rb` and
 - Target not Electron or plist unreadable: existing `AppInspector` errors.
 - Launcher drift regeneration failure: run stale clone, as above.
 - Destination not writable for regeneration from the launcher: same fallback.
+- Copy fallback with insufficient disk space: generator throws with the
+  system error, staging removed.
+- Instance running when the user edits or deletes it: refused with the
+  "Quit and continue" offer, never a silent swap.
 
 ## Testing
 
@@ -178,6 +222,8 @@ Unit (DuplexKit, no GUI):
   preserves the icon.
 - `InstanceStore.scan` reports `formatVersion` 1 for a legacy plist and 2 for
   a new one.
+- Quarantine flag set on the fixture app is absent from the generated clone.
+- Fixture with a second executable in `Contents/MacOS` gets both signed.
 
 Manual (user, GUI):
 1. Fresh install of 1.2 over 1.1.3 with existing instances: migration alert
