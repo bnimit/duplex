@@ -44,23 +44,12 @@ final class BundleClonerTests: XCTestCase {
         }
     }
 
-    func testIsMachO() throws {
-        XCTAssertTrue(BundleCloner.isMachO(URL(fileURLWithPath: "/bin/ls")))
-        let script = tmp.appendingPathComponent("s.sh")
-        try "#!/bin/bash\necho hi\n".write(to: script, atomically: true, encoding: .utf8)
-        XCTAssertFalse(BundleCloner.isMachO(script))
-        let empty = tmp.appendingPathComponent("empty")
-        try Data().write(to: empty)
-        XCTAssertFalse(BundleCloner.isMachO(empty))
-        XCTAssertFalse(BundleCloner.isMachO(tmp.appendingPathComponent("missing")))
-    }
-
-    func testMachOExecutablesListsOnlyMachOFiles() throws {
+    func testLooseFilesListsRegularFilesOnly() throws {
         let dir = tmp.appendingPathComponent("MacOS")
         try fm.createDirectory(at: dir.appendingPathComponent("subdir"), withIntermediateDirectories: true)
         try fm.copyItem(at: URL(fileURLWithPath: "/bin/ls"), to: dir.appendingPathComponent("native"))
         try "#!/bin/bash\n".write(to: dir.appendingPathComponent("script"), atomically: true, encoding: .utf8)
-        XCTAssertEqual(BundleCloner.machOExecutables(in: dir).map(\.lastPathComponent), ["native"])
-        XCTAssertEqual(BundleCloner.machOExecutables(in: tmp.appendingPathComponent("nope")), [])
+        XCTAssertEqual(BundleCloner.looseFiles(in: dir).map(\.lastPathComponent), ["native", "script"])
+        XCTAssertEqual(BundleCloner.looseFiles(in: tmp.appendingPathComponent("nope")), [])
     }
 }

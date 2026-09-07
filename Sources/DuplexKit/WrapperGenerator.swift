@@ -151,11 +151,11 @@ public struct WrapperGenerator {
 
     /// Innermost first: helper apps, then every regular file directly in MacOS other than the
     /// launcher (the target's own binary, and anything else the app ships there, Mach-O or
-    /// not), then the launcher, then the bundle. Ad-hoc-signing the launcher, which is
-    /// CFBundleExecutable, puts codesign into bundle-validation mode, which requires every
-    /// sibling file in MacOS to already carry some signature; codesign can ad-hoc-sign a
-    /// non-Mach-O file too (a generic-format signature), so a script main executable such as
-    /// the target's original binary is signed the same way. Chromium requires the browser and
+    /// not), then the bundle. Bundle signing requires all nested code to be signed first, so
+    /// every loose file in MacOS is signed before the bundle; non-Mach-O files take a
+    /// generic-format signature. Signing the main executable path is the same as signing the
+    /// bundle (codesign resolves CFBundleExecutable to its enclosing bundle), so the launcher
+    /// is signed by the bundle step below, not separately. Chromium requires the browser and
     /// its helpers to share a signing identity, and ad-hoc for all of them satisfies that.
     /// Frameworks are not touched and keep the vendor's signature.
     private func codesign(_ bundle: URL) throws {
@@ -168,14 +168,8 @@ public struct WrapperGenerator {
         for helper in helpers { try Codesigner.adhocSign(helper) }
 
         let macos = contents.appendingPathComponent("MacOS")
-        let items = ((try? fm.contentsOfDirectory(at: macos, includingPropertiesForKeys: [.isRegularFileKey])) ?? [])
-            .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        for item in items where item.lastPathComponent != InstancePlist.launcherExecutable {
+        for item in BundleCloner.looseFiles(in: macos) where item.lastPathComponent != InstancePlist.launcherExecutable {
             try Codesigner.adhocSign(item)
-        }
-        if let launcher = items.first(where: { $0.lastPathComponent == InstancePlist.launcherExecutable }) {
-            try Codesigner.adhocSign(launcher)
         }
         try Codesigner.adhocSign(bundle)
     }

@@ -35,25 +35,14 @@ public enum BundleCloner {
         }
     }
 
-    /// True when the file starts with a Mach-O or fat-binary magic number.
-    public static func isMachO(_ url: URL) -> Bool {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
-        defer { try? handle.close() }
-        guard let data = try? handle.read(upToCount: 4), data.count == 4 else { return false }
-        let magic = data.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
-        let known: [UInt32] = [0xfeedfacf, 0xcffaedfe, 0xfeedface, 0xcefaedfe, 0xcafebabe, 0xbebafeca]
-        return known.contains(magic)
-    }
-
-    /// Regular Mach-O files directly inside `dir` (not recursive), sorted by name. Scripts and
-    /// other non-Mach-O files are left out because they cannot carry an embedded signature.
-    public static func machOExecutables(in dir: URL) -> [URL] {
+    /// Regular files directly inside `dir` (not recursive), sorted by name. Subdirectories are
+    /// left out.
+    public static func looseFiles(in dir: URL) -> [URL] {
         let items = (try? FileManager.default.contentsOfDirectory(
             at: dir, includingPropertiesForKeys: [.isRegularFileKey], options: [])) ?? []
         return items
             .filter { url in
-                let regular = (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false
-                return regular && isMachO(url)
+                (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false
             }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
