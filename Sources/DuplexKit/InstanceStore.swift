@@ -18,10 +18,19 @@ public struct Instance: Equatable, Identifiable {
     public let targetPath: String
     public let urlSchemes: [String]
     public let dataDir: URL
+    /// 1 for a 1.1 thin wrapper, 2 for a cloned app with its own identity.
+    public let formatVersion: Int
+    /// Target version the clone was made from; nil for legacy wrappers.
+    public let sourceVersion: String?
+
+    /// The identity the instance's process reports to macOS (clones only; a legacy wrapper's
+    /// process reports the target app's identity).
+    public var bundleID: String { DuplexPlistKey.bundleIDPrefix + slug }
+    public var isLegacy: Bool { formatVersion < DuplexPlistKey.currentFormatVersion }
 }
 
 public enum InstanceStore {
-    /// Slugs come from external Info.plists — only SlugGenerator's alphabet is trusted
+    /// Slugs come from external Info.plists: only SlugGenerator's alphabet is trusted
     /// because the slug becomes a filesystem path that delete() removes recursively.
     static func isValidSlug(_ slug: String) -> Bool {
         slug.range(of: "^[a-z0-9]+(-[a-z0-9]+)*$", options: .regularExpression) != nil
@@ -50,7 +59,9 @@ public enum InstanceStore {
                 wrapperURL: bundle, name: name, slug: slug,
                 targetBundleID: targetBundleID, targetPath: targetPath,
                 urlSchemes: schemes,
-                dataDir: LauncherLogic.dataDir(slug: slug, homePath: homePath)))
+                dataDir: LauncherLogic.dataDir(slug: slug, homePath: homePath),
+                formatVersion: plist[DuplexPlistKey.formatVersion] as? Int ?? 1,
+                sourceVersion: plist[DuplexPlistKey.sourceVersion] as? String))
         }
         return instances.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }

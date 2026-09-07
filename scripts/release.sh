@@ -30,7 +30,7 @@ VERSION=$(plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.pli
 ZIP="dist/Duplex-$VERSION.zip"
 
 # The launcher lives in Resources, which bundle signing does NOT descend
-# into — notarization rejects unsigned nested Mach-O binaries, so sign it
+# into: notarization rejects unsigned nested Mach-O binaries, so sign it
 # explicitly first.
 codesign --force --options runtime --timestamp -s "$IDENTITY" \
   "$APP/Contents/Resources/duplex-launcher"

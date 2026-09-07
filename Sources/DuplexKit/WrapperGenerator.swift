@@ -2,15 +2,18 @@ import AppKit
 import CoreServices
 
 public enum WrapperGeneratorError: Error, LocalizedError {
-    case codesignFailed(Int32)
+    case codesignFailed(Int32, String)
     case destinationOccupied(String)
+    case unreadablePlist(String)
 
     public var errorDescription: String? {
         switch self {
-        case .codesignFailed(let status):
-            return "codesign failed with exit status \(status)."
+        case .codesignFailed(let status, let message):
+            return "codesign failed with exit status \(status): \(message)"
         case .destinationOccupied(let name):
-            return "\(name).app already exists there and isn't this instance's wrapper — pick a different instance name."
+            return "\(name).app already exists there and isn't this instance's wrapper, pick a different instance name."
+        case .unreadablePlist(let path):
+            return "The app's Info.plist at \(path) could not be read."
         }
     }
 }
@@ -27,7 +30,7 @@ public struct WrapperGenerator {
         let fm = FileManager.default
         try fm.createDirectory(at: outputDir, withIntermediateDirectories: true)
 
-        // Locate this slug's existing wrapper (if any) — replaced only after the new build succeeds.
+        // Locate this slug's existing wrapper (if any), replaced only after the new build succeeds.
         let oldWrapper = ((try? fm.contentsOfDirectory(at: outputDir, includingPropertiesForKeys: nil)) ?? [])
             .first { $0.pathExtension == "app"
                 && !$0.lastPathComponent.hasPrefix(".")
@@ -65,29 +68,52 @@ public struct WrapperGenerator {
         return plist[DuplexPlistKey.instanceSlug] as? String
     }
 
+    /// The instance is a copy-on-write clone of the target app whose identity is patched:
+    /// only the Info.plist keys InstancePlist changes, the launcher, and the icon differ from
+    /// the original. Running the app's binary from inside this clone is what gives the
+    /// instance its own identity to LaunchServices.
     private func build(spec: InstanceSpec, icon: IconChoice, oldWrapper: URL?, at bundleURL: URL) throws {
         let fm = FileManager.default
+        try BundleCloner.clone(spec.target.url, to: bundleURL)
         let contents = bundleURL.appendingPathComponent("Contents")
-        try fm.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
-        try fm.createDirectory(at: contents.appendingPathComponent("Resources"), withIntermediateDirectories: true)
 
-        let plistData = try PropertyListSerialization.data(
-            fromPropertyList: WrapperPlist.plist(for: spec), format: .xml, options: 0)
-        try plistData.write(to: contents.appendingPathComponent("Info.plist"))
-        try Data("APPL????".utf8).write(to: contents.appendingPathComponent("PkgInfo"))
+        let plistURL = contents.appendingPathComponent("Info.plist")
+        guard let data = try? Data(contentsOf: plistURL),
+              let original = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { throw WrapperGeneratorError.unreadablePlist(plistURL.path) }
+        let patched = InstancePlist.patch(original, spec: spec)
+        try PropertyListSerialization.data(fromPropertyList: patched, format: .xml, options: 0).write(to: plistURL)
 
-        let exec = contents.appendingPathComponent("MacOS/duplex-launcher")
+        let pkgInfo = contents.appendingPathComponent("PkgInfo")
+        if !fm.fileExists(atPath: pkgInfo.path) { try Data("APPL????".utf8).write(to: pkgInfo) }
+
+        // Ad-hoc code cannot use a provisioning profile; leaving it would only confuse validation.
+        let profile = contents.appendingPathComponent("embedded.provisionprofile")
+        if fm.fileExists(atPath: profile.path) { try fm.removeItem(at: profile) }
+
+        let exec = contents.appendingPathComponent("MacOS").appendingPathComponent(InstancePlist.launcherExecutable)
+        if fm.fileExists(atPath: exec.path) { try fm.removeItem(at: exec) }
         try fm.copyItem(at: launcherBinary, to: exec)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exec.path)
 
-        // Icon must be written before codesign — the signature seals Resources.
-        let iconDestination = contents.appendingPathComponent("Resources/icon.icns")
+        // Icon must be written before codesign; the signature seals Resources.
+        let resources = contents.appendingPathComponent("Resources")
+        try fm.createDirectory(at: resources, withIntermediateDirectories: true)
+        try writeIcon(icon, spec: spec, oldWrapper: oldWrapper, to: resources.appendingPathComponent(InstancePlist.iconFile))
+
+        // Last, so the copied launcher and icon are covered as well.
+        BundleCloner.stripQuarantine(at: bundleURL)
+    }
+
+    private func writeIcon(_ icon: IconChoice, spec: InstanceSpec, oldWrapper: URL?, to iconDestination: URL) throws {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: iconDestination.path) { try fm.removeItem(at: iconDestination) }
         switch icon {
         case .original:
             if let sourceIcns = originalIconURL(for: spec.target) {
                 try fm.copyItem(at: sourceIcns, to: iconDestination)
             } else {
-                // No usable .icns on the target (e.g. Assets.car-only app) — fall back to a
+                // No usable .icns on the target (e.g. Assets.car-only app): fall back to a
                 // rendered, unbadged icon.
                 let icon = IconBadger.normalizedIcon(NSWorkspace.shared.icon(forFile: spec.target.url.path))
                 try IconBadger.writeICNS(icon, to: iconDestination)
@@ -100,11 +126,11 @@ public struct WrapperGenerator {
             let image = try IconBadger.loadImage(at: url)
             try IconBadger.writeICNS(image, to: iconDestination)
         case .keepExisting:
-            let oldIcon = oldWrapper?.appendingPathComponent("Contents/Resources/icon.icns")
+            let oldIcon = oldWrapper?.appendingPathComponent("Contents/Resources").appendingPathComponent(InstancePlist.iconFile)
             if let oldIcon, fm.fileExists(atPath: oldIcon.path) {
                 try fm.copyItem(at: oldIcon, to: iconDestination)
             } else {
-                // No prior wrapper to copy from (e.g. first-time generation) — fall back to badge(.blue).
+                // No prior wrapper to copy from (e.g. first-time generation): fall back to badge(.blue).
                 let icon = IconBadger.normalizedIcon(NSWorkspace.shared.icon(forFile: spec.target.url.path))
                 let image = IconBadger.badged(icon, color: .blue)
                 try IconBadger.writeICNS(image, to: iconDestination)
@@ -126,15 +152,29 @@ public struct WrapperGenerator {
         return FileManager.default.fileExists(atPath: iconURL.path) ? iconURL : nil
     }
 
+    /// Innermost first: helper apps, then every regular file directly in MacOS other than the
+    /// launcher (the target's own binary, and anything else the app ships there, Mach-O or
+    /// not), then the bundle. Bundle signing requires all nested code to be signed first, so
+    /// every loose file in MacOS is signed before the bundle; non-Mach-O files take a
+    /// generic-format signature. Signing the main executable path is the same as signing the
+    /// bundle (codesign resolves CFBundleExecutable to its enclosing bundle), so the launcher
+    /// is signed by the bundle step below, not separately. Chromium requires the browser and
+    /// its helpers to share a signing identity, and ad-hoc for all of them satisfies that.
+    /// Frameworks are not touched and keep the vendor's signature.
     private func codesign(_ bundle: URL) throws {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        p.arguments = ["--force", "--deep", "-s", "-", bundle.path]
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        try p.run()
-        p.waitUntilExit()
-        guard p.terminationStatus == 0 else { throw WrapperGeneratorError.codesignFailed(p.terminationStatus) }
+        let fm = FileManager.default
+        let contents = bundle.appendingPathComponent("Contents")
+        let frameworks = contents.appendingPathComponent("Frameworks")
+        let helpers = ((try? fm.contentsOfDirectory(at: frameworks, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "app" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        for helper in helpers { try Codesigner.adhocSign(helper) }
+
+        let macos = contents.appendingPathComponent("MacOS")
+        for item in BundleCloner.looseFiles(in: macos) where item.lastPathComponent != InstancePlist.launcherExecutable {
+            try Codesigner.adhocSign(item)
+        }
+        try Codesigner.adhocSign(bundle)
     }
 
     public static func defaultOutputDir() -> URL {

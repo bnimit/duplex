@@ -5,9 +5,13 @@ import DuplexKit
 struct InstanceListView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var license: LicenseManager
+    @EnvironmentObject var updates: UpdateManager
     @State private var editorTarget: EditorTarget?
     @State private var deleteCandidate: Instance?
     @State private var searchText = ""
+    @State private var copiedCommand = false
+    /// Fixed for the life of the window: how this copy of Duplex was installed.
+    private let installMethod = InstallMethod.detect()
 
     enum EditorTarget: Identifiable {
         case new
@@ -55,6 +59,7 @@ struct InstanceListView: View {
                 .toolbar { toolbarItems }
                 .searchable(text: $searchText, prompt: "Search instances")
         }
+        .safeAreaInset(edge: .top, spacing: 0) { updateBanner }
         .safeAreaInset(edge: .bottom, spacing: 0) { statusBar }
         // Profile sizes are cached (walking large profiles per repaint is too
         // slow), so re-scan whenever the app comes back to the foreground:
@@ -92,6 +97,31 @@ struct InstanceListView: View {
         } message: {
             Text(state.errorMessage ?? "")
         }
+        .alert("\(state.blockedAction?.instance.name ?? "This instance") is running",
+               isPresented: Binding(get: { state.blockedAction != nil },
+                                    set: { if !$0 { state.blockedAction = nil } })) {
+            Button("Quit and Continue") {
+                guard let action = state.blockedAction else { return }
+                state.blockedAction = nil
+                Task {
+                    guard await state.quitAndContinue(action) else { return }
+                    switch action {
+                    case .edit(let i): editorTarget = .edit(i)
+                    case .delete(let i): deleteCandidate = i
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Changing or deleting an instance while it runs would pull the app out from under it. Duplex can quit it first.")
+        }
+        .alert("Instances updated", isPresented: Binding(
+            get: { state.migrationNotice != nil },
+            set: { if !$0 { state.migrationNotice = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(state.migrationNotice ?? "")
+        }
     }
 
     // MARK: - Toolbar
@@ -114,6 +144,7 @@ struct InstanceListView: View {
         .modifier(ProminentActionStyle())
         .keyboardShortcut("n")
         .help("Wrappers are saved to \(state.outputDir.path)")
+        .disabled(state.isBusy)
     }
 
     @ToolbarContentBuilder
@@ -197,12 +228,18 @@ struct InstanceListView: View {
                     fromByteCount: state.dataSizes[instance.slug] ?? 0, countStyle: .file))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                if state.needsRebuild(instance) {
+                    Text("Rebuilds on next launch (app updated)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Button("Launch") { state.launch(instance) }
                 .modifier(ProminentActionStyle())
                 .controlSize(.small)
                 .fixedSize()
+                .disabled(state.isBusy)
             actionsMenu(instance)
         }
         .padding(.vertical, 5)
@@ -236,15 +273,18 @@ struct InstanceListView: View {
 
     @ViewBuilder
     private func menuItems(_ instance: Instance) -> some View {
-        Button("Edit\u{2026}") { editorTarget = .edit(instance) }
-        Button("Launch Original App") { state.launchOriginal(instance) }
+        Button("Edit\u{2026}") {
+            if state.guardNotRunning(.edit(instance)) { editorTarget = .edit(instance) }
+        }
         Button("Reveal Data Folder") { state.revealData(instance) }
         if !instance.urlSchemes.isEmpty {
             Button("Route Links Here") { state.routeLinks(to: instance) }
             Button("Route Links to Original App") { state.routeLinksToOriginal(instance) }
         }
         Divider()
-        Button("Delete\u{2026}", role: .destructive) { deleteCandidate = instance }
+        Button("Delete\u{2026}", role: .destructive) {
+            if state.guardNotRunning(.delete(instance)) { deleteCandidate = instance }
+        }
     }
 
     // MARK: - Empty / no-match states
@@ -280,12 +320,77 @@ struct InstanceListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Update banner
+
+    /// Shown only when a newer release exists and the user has not dismissed
+    /// that version. Duplex never installs anything itself, so the banner's job
+    /// is to give the one step that applies to how this copy was installed.
+    @ViewBuilder
+    private var updateBanner: some View {
+        if let update = updates.available {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(DuplexTheme.indigo)
+                    Text("Duplex \(update.version) is available")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    switch installMethod {
+                    case .homebrew:
+                        Text("Update with")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(DuplexConfig.upgradeCommand)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                        Button(copiedCommand ? "Copied" : "Copy") { copyUpgradeCommand() }
+                            .buttonStyle(.link)
+                            .font(.system(size: 11))
+                            .disabled(copiedCommand)
+                    case .direct:
+                        Button("Download \(update.version)\u{2026}") {
+                            NSWorkspace.shared.open(update.url)
+                        }
+                        .controlSize(.small)
+                    }
+                    Button { updates.dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Hide this until the next version")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(.bar)
+                Divider()
+            }
+        }
+    }
+
+    private func copyUpgradeCommand() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(DuplexConfig.upgradeCommand, forType: .string)
+        copiedCommand = true
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            copiedCommand = false
+        }
+    }
+
     // MARK: - Status bar
 
     private var statusBar: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: 6) {
+                Text("Duplex \(DuplexConfig.appVersion)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\u{00B7}")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
                 Circle()
                     .fill(license.isLicensed ? DuplexTheme.indigo : DuplexTheme.coral)
                     .frame(width: 7, height: 7)
@@ -298,6 +403,10 @@ struct InstanceListView: View {
                         .buttonStyle(.link).font(.caption)
                 }
                 Spacer()
+                if state.isBusy {
+                    ProgressView().controlSize(.small)
+                    Text("Working\u{2026}").font(.caption).foregroundStyle(.secondary)
+                }
                 Text(state.outputDir.path)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.tertiary)

@@ -1,6 +1,6 @@
 // Generates assets/AppIcon.icns for Duplex.
 // Run: swift scripts/make-icon.swift
-// Design: indigo two-tone squircle (one field, two tones — a "duplex"),
+// Design: indigo two-tone squircle (one field, two tones, a "duplex"),
 // a ghost app shape behind a solid glass copy in front, wearing the same
 // coral badge dot Duplex paints on wrapper icons.
 import AppKit
@@ -90,7 +90,7 @@ func draw(in ctx: CGContext) {
         options: [])
     ctx.restoreGState()
 
-    // The badge dot — the same mark Duplex paints on every wrapper icon.
+    // The badge dot, the same mark Duplex paints on every wrapper icon.
     let badgeCenter = CGPoint(x: frontRect.maxX - 24, y: frontRect.minY + 24)
     let badgeRadius: CGFloat = 62
     let badgeRect = CGRect(

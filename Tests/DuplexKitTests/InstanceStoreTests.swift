@@ -67,7 +67,7 @@ final class InstanceStoreTests: XCTestCase {
         try FileManager.default.createDirectory(at: staleContents, withIntermediateDirectories: true)
         let app = try FixtureFactory.makeFakeApp(named: "Ghost", bundleID: "com.x.ghost", electron: true, in: tmp)
         let spec = InstanceSpec(name: "Ghost", slug: "ghost", target: try AppInspector.inspect(app))
-        let data = try PropertyListSerialization.data(fromPropertyList: WrapperPlist.plist(for: spec), format: .xml, options: 0)
+        let data = try PropertyListSerialization.data(fromPropertyList: FixtureFactory.legacyDuplexPlist(spec: spec), format: .xml, options: 0)
         try data.write(to: staleContents.appendingPathComponent("Info.plist"))
 
         let instances = InstanceStore.scan(outputDir: out, homePath: "/tmp/h")
@@ -100,5 +100,30 @@ final class InstanceStoreTests: XCTestCase {
         try generateWrapper(named: "Fake Work", slug: "fake-work-2")
         let instances = InstanceStore.scan(outputDir: tmp.appendingPathComponent("wrappers"), homePath: tmp.path)
         XCTAssertEqual(instances.map(\.slug), ["fake-work-2"])
+    }
+
+    func testScanReportsCloneFormatAndSourceVersion() throws {
+        try generateWrapper(named: "Fake Work", slug: "fake-work")
+        let inst = InstanceStore.scan(outputDir: tmp.appendingPathComponent("wrappers"), homePath: tmp.path)[0]
+        XCTAssertEqual(inst.formatVersion, 2)
+        XCTAssertEqual(inst.sourceVersion, "1.0 (100)")
+        XCTAssertEqual(inst.bundleID, "com.duplex.fake-work")
+        XCTAssertFalse(inst.isLegacy)
+    }
+
+    func testScanReportsLegacyWrapperAsFormatOne() throws {
+        let out = tmp.appendingPathComponent("wrappers")
+        let contents = out.appendingPathComponent("Old One.app/Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let app = try FixtureFactory.makeFakeApp(named: "Fake", bundleID: "com.x.fake", electron: true, in: tmp)
+        let spec = InstanceSpec(name: "Old One", slug: "old-one", target: try AppInspector.inspect(app))
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: FixtureFactory.legacyDuplexPlist(spec: spec), format: .xml, options: 0)
+        try data.write(to: contents.appendingPathComponent("Info.plist"))
+
+        let inst = InstanceStore.scan(outputDir: out, homePath: tmp.path)[0]
+        XCTAssertEqual(inst.formatVersion, 1)
+        XCTAssertNil(inst.sourceVersion)
+        XCTAssertTrue(inst.isLegacy)
     }
 }

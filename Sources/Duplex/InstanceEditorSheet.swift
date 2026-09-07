@@ -116,11 +116,12 @@ struct InstanceEditorSheet: View {
 
             HStack {
                 Spacer()
+                if state.isBusy { ProgressView().controlSize(.small) }
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(existing == nil ? "Create" : "Save") { submit() }
                     .modifier(ProminentActionStyle())
                     .keyboardShortcut(.defaultAction)
-                    .disabled(appURL == nil || name.trimmingCharacters(in: .whitespaces).isEmpty
+                    .disabled(state.isBusy || appURL == nil || name.trimmingCharacters(in: .whitespaces).isEmpty
                               || (iconMode == .custom && customIconURL == nil))
             }
         }
@@ -198,16 +199,18 @@ struct InstanceEditorSheet: View {
         case .badge: icon = .badge(badgeColor)
         case .custom: icon = .custom(customIconURL!)
         }
-        state.create(
-            name: name.trimmingCharacters(in: .whitespaces),
-            appURL: appURL, icon: icon, existingSlug: existing?.slug)
-        // The error alert lives on the parent view, under this sheet, so it would never be
-        // seen here — surface the failure inline instead and keep the sheet open.
-        if let message = state.errorMessage {
-            validationError = message
-            state.errorMessage = nil
-        } else {
-            dismiss()
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let slug = existing?.slug
+        Task {
+            let ok = await state.create(name: trimmed, appURL: appURL, icon: icon, existingSlug: slug)
+            if ok {
+                dismiss()
+            } else {
+                // The error alert lives on the parent view, under this sheet, so it would never
+                // be seen here. Surface the failure inline and keep the sheet open.
+                validationError = state.errorMessage
+                state.errorMessage = nil
+            }
         }
     }
 }

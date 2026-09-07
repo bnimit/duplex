@@ -233,6 +233,9 @@ Manual (user, GUI):
    that instance; original remains on its own account.
 4. Instance created from a Claude version, then Claude updates: next instance
    launch takes about two seconds longer and runs the new version.
+5. Try a passkey or Microsoft work-account sign-in inside an instance and
+   confirm the documented limitation (expected to fail; note the exact
+   behaviour).
 
 ## Out of scope (recorded for later)
 
@@ -241,3 +244,5 @@ Manual (user, GUI):
   cheap to sign with `-r 'designated => identifier "..."'`; TCC behaviour
   untested.
 - Automatic scheme routing when an instance comes to the foreground.
+- Keychain access groups (passkeys, Microsoft SSO) cannot be restored by any
+  signing identity other than the vendor's.
