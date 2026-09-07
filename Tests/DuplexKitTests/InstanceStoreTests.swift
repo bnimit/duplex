@@ -67,7 +67,7 @@ final class InstanceStoreTests: XCTestCase {
         try FileManager.default.createDirectory(at: staleContents, withIntermediateDirectories: true)
         let app = try FixtureFactory.makeFakeApp(named: "Ghost", bundleID: "com.x.ghost", electron: true, in: tmp)
         let spec = InstanceSpec(name: "Ghost", slug: "ghost", target: try AppInspector.inspect(app))
-        let data = try PropertyListSerialization.data(fromPropertyList: WrapperPlist.plist(for: spec), format: .xml, options: 0)
+        let data = try PropertyListSerialization.data(fromPropertyList: FixtureFactory.legacyDuplexPlist(spec: spec), format: .xml, options: 0)
         try data.write(to: staleContents.appendingPathComponent("Info.plist"))
 
         let instances = InstanceStore.scan(outputDir: out, homePath: "/tmp/h")

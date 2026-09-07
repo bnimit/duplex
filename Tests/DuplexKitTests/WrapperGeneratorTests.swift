@@ -182,7 +182,7 @@ final class WrapperGeneratorTests: XCTestCase {
         // Simulate a crashed prior run: a stale staging bundle with this slug's plist.
         let staleContents = out.appendingPathComponent(".duplex-staging-fake-work.app/Contents")
         try FileManager.default.createDirectory(at: staleContents, withIntermediateDirectories: true)
-        let plist = WrapperPlist.plist(for: spec)
+        let plist = FixtureFactory.legacyDuplexPlist(spec: spec)
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: staleContents.appendingPathComponent("Info.plist"))
 

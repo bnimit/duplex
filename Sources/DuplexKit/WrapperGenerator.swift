@@ -72,7 +72,7 @@ public struct WrapperGenerator {
         try fm.createDirectory(at: contents.appendingPathComponent("Resources"), withIntermediateDirectories: true)
 
         let plistData = try PropertyListSerialization.data(
-            fromPropertyList: WrapperPlist.plist(for: spec), format: .xml, options: 0)
+            fromPropertyList: LegacyWrapperPlist.plist(for: spec), format: .xml, options: 0)
         try plistData.write(to: contents.appendingPathComponent("Info.plist"))
         try Data("APPL????".utf8).write(to: contents.appendingPathComponent("PkgInfo"))
 
@@ -143,5 +143,34 @@ public struct WrapperGenerator {
         let userApps = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
         try? FileManager.default.createDirectory(at: userApps, withIntermediateDirectories: true)
         return userApps
+    }
+}
+
+// Temporary until the clone-based build lands: the 1.1 thin-wrapper plist.
+private enum LegacyWrapperPlist {
+    static func plist(for spec: InstanceSpec) -> [String: Any] {
+        var plist: [String: Any] = [
+            "CFBundleIdentifier": DuplexPlistKey.bundleIDPrefix + spec.slug,
+            "CFBundleName": spec.name,
+            "CFBundleDisplayName": spec.name,
+            "CFBundleExecutable": "duplex-launcher",
+            "CFBundlePackageType": "APPL",
+            "CFBundleIconFile": "icon",
+            "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "1",
+            "LSMinimumSystemVersion": "13.0",
+            "NSHighResolutionCapable": true,
+            DuplexPlistKey.targetBundleID: spec.target.bundleID,
+            DuplexPlistKey.targetPath: spec.target.url.path,
+            DuplexPlistKey.instanceSlug: spec.slug,
+            DuplexPlistKey.instanceName: spec.name,
+        ]
+        if !spec.target.urlSchemes.isEmpty {
+            plist["CFBundleURLTypes"] = [[
+                "CFBundleURLName": spec.name,
+                "CFBundleURLSchemes": spec.target.urlSchemes,
+            ] as [String: Any]]
+        }
+        return plist
     }
 }

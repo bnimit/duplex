@@ -1,4 +1,5 @@
 import Foundation
+import DuplexKit
 
 enum FixtureFactory {
     /// Builds a minimal fake .app bundle. If electron: true, adds
@@ -22,6 +23,8 @@ enum FixtureFactory {
             "CFBundleName": name,
             "CFBundleExecutable": name,
             "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": "1.0",
+            "CFBundleVersion": "100",
         ]
         if !schemes.isEmpty {
             plist["CFBundleURLTypes"] = [["CFBundleURLName": name, "CFBundleURLSchemes": schemes]]
@@ -46,5 +49,18 @@ enum FixtureFactory {
             .appendingPathComponent("duplex-tests-\(testName)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    /// A 1.1-format wrapper plist (no DuplexFormatVersion) for legacy-detection and staging tests.
+    static func legacyDuplexPlist(spec: InstanceSpec) -> [String: Any] {
+        [
+            "CFBundleIdentifier": DuplexPlistKey.bundleIDPrefix + spec.slug,
+            "CFBundleName": spec.name,
+            "CFBundleExecutable": "duplex-launcher",
+            DuplexPlistKey.targetBundleID: spec.target.bundleID,
+            DuplexPlistKey.targetPath: spec.target.url.path,
+            DuplexPlistKey.instanceSlug: spec.slug,
+            DuplexPlistKey.instanceName: spec.name,
+        ]
     }
 }
