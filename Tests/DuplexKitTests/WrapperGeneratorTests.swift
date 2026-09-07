@@ -9,11 +9,11 @@ final class WrapperGeneratorTests: XCTestCase {
 
     private func makeSpec(helper: Bool = false, nativeExecutable: Bool = false,
                           provisionProfile: Bool = false, iconName: String? = nil,
-                          documentTypes: Bool = false) throws -> InstanceSpec {
+                          documentTypes: Bool = false, shipsIconIcns: Bool = false) throws -> InstanceSpec {
         let app = try FixtureFactory.makeFakeApp(
             named: "Fake", bundleID: "com.x.fake", electron: true, schemes: ["fake"],
             helper: helper, nativeExecutable: nativeExecutable, provisionProfile: provisionProfile,
-            iconName: iconName, documentTypes: documentTypes, in: tmp)
+            iconName: iconName, documentTypes: documentTypes, shipsIconIcns: shipsIconIcns, in: tmp)
         return InstanceSpec(name: "Fake Work", slug: "fake-work", target: try AppInspector.inspect(app))
     }
 
@@ -225,6 +225,28 @@ final class WrapperGeneratorTests: XCTestCase {
         let iconURL = wrapper.appendingPathComponent("Contents/Resources/icon.icns")
         XCTAssertTrue(FileManager.default.fileExists(atPath: iconURL.path))
         XCTAssertNotNil(NSImage(contentsOf: iconURL))
+    }
+
+    func testOriginalIconOverwritesTargetIconFile() throws {
+        let spec = try makeSpec(shipsIconIcns: true)
+        let out = tmp.appendingPathComponent("wrappers")
+        let wrapper = try generator.generate(spec: spec, icon: .original, outputDir: out)
+
+        let targetIcnsData = try Data(contentsOf: spec.target.url.appendingPathComponent("Contents/Resources/icon.icns"))
+        let wrapperIcnsData = try Data(contentsOf: wrapper.appendingPathComponent("Contents/Resources/icon.icns"))
+        XCTAssertEqual(targetIcnsData, wrapperIcnsData)
+    }
+
+    func testKeepExistingIconOverExistingWrapperWhenTargetShipsIconFile() throws {
+        let spec = try makeSpec(shipsIconIcns: true)
+        let out = tmp.appendingPathComponent("wrappers")
+        let wrapper = try generator.generate(spec: spec, icon: .badge(.red), outputDir: out)
+        let firstIconData = try Data(contentsOf: wrapper.appendingPathComponent("Contents/Resources/icon.icns"))
+
+        let regenerated = try generator.generate(spec: spec, icon: .keepExisting, outputDir: out)
+        let regeneratedIconData = try Data(contentsOf: regenerated.appendingPathComponent("Contents/Resources/icon.icns"))
+
+        XCTAssertEqual(firstIconData, regeneratedIconData)
     }
 
     func testWrittenIcnsContainsHiResRep() throws {

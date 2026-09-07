@@ -22,7 +22,7 @@ final class CodesignerTests: XCTestCase {
 
     func testAdhocSignFailureThrows() {
         XCTAssertThrowsError(try Codesigner.adhocSign(tmp.appendingPathComponent("missing"))) { error in
-            guard case WrapperGeneratorError.codesignFailed = error else { return XCTFail("wrong error: \(error)") }
+            guard case WrapperGeneratorError.codesignFailed(_, _) = error else { return XCTFail("wrong error: \(error)") }
         }
     }
 }

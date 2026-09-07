@@ -223,6 +223,11 @@ struct InstanceListView: View {
                     fromByteCount: state.dataSizes[instance.slug] ?? 0, countStyle: .file))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                if state.needsRebuild(instance) {
+                    Text("Rebuilds on next launch (app updated)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Button("Launch") { state.launch(instance) }

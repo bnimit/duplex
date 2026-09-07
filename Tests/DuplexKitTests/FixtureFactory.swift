@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import DuplexKit
 
@@ -20,6 +21,7 @@ enum FixtureFactory {
         provisionProfile: Bool = false,
         iconName: String? = nil,
         documentTypes: Bool = false,
+        shipsIconIcns: Bool = false,
         in dir: URL
     ) throws -> URL {
         let fm = FileManager.default
@@ -43,8 +45,17 @@ enum FixtureFactory {
         if documentTypes {
             plist["CFBundleDocumentTypes"] = [["CFBundleTypeName": "Thing", "CFBundleTypeExtensions": ["thing"]]]
         }
+        if shipsIconIcns { plist["CFBundleIconFile"] = "icon.icns" }
         let plistData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try plistData.write(to: contents.appendingPathComponent("Info.plist"))
+
+        if shipsIconIcns {
+            let resources = contents.appendingPathComponent("Resources")
+            try fm.createDirectory(at: resources, withIntermediateDirectories: true)
+            let iconImage = NSImage(size: NSSize(width: 64, height: 64))
+            iconImage.lockFocus(); NSColor.systemTeal.setFill(); NSRect(x: 0, y: 0, width: 64, height: 64).fill(); iconImage.unlockFocus()
+            try IconBadger.writeICNS(iconImage, to: resources.appendingPathComponent("icon.icns"))
+        }
 
         let script = "#!/bin/bash\necho \"$0 $@\" > \"$(dirname \"$0\")/../../../args.txt\"\n"
         let exec = macos.appendingPathComponent(name)

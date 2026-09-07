@@ -99,6 +99,10 @@ guard FileManager.default.isExecutableFile(atPath: execURL.path) else {
     fail("This instance is incomplete (\(execURL.lastPathComponent) is missing). Open Duplex and edit the instance to rebuild it.")
 }
 
+if execURL.lastPathComponent == InstancePlist.launcherExecutable {
+    fail("This instance points at another Duplex instance instead of the original app. Delete it and create it again from the original app.")
+}
+
 let args = LauncherLogic.execArguments(targetExecutable: execURL.path, dataDir: dataDir)
 var cargs: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
 cargs.append(nil)

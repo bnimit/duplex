@@ -87,6 +87,14 @@ final class AppState: ObservableObject {
             fileExists: { FileManager.default.fileExists(atPath: $0) })
     }
 
+    /// True when the target app has updated since this instance's clone was made, so its next
+    /// launch will rebuild it in place. Reads one plist per call; acceptable for a list this size.
+    func needsRebuild(_ instance: Instance) -> Bool {
+        guard let appURL = targetURL(for: instance) else { return false }
+        return LauncherLogic.needsResync(
+            recorded: instance.sourceVersion, installed: InstancePlist.sourceVersion(ofBundleAt: appURL))
+    }
+
     /// Generation clones and signs an app bundle: about two seconds, longer on the copy
     /// fallback, so it runs off the main actor.
     private func generate(spec: InstanceSpec, icon: IconChoice, launcher: URL) async throws {
@@ -163,7 +171,7 @@ final class AppState: ObservableObject {
         refresh()
         if migrated > 0 {
             let noun = migrated == 1 ? "instance" : "instances"
-            var notice = "Duplex updated \(migrated) \(noun) to the new format so each has its own identity. Because session storage changed, sign in again in each instance."
+            var notice = "Duplex updated \(migrated) \(noun) to the new format so each has its own identity. Quit any instance that is still running, then launch it again. Because session storage changed, you will sign in again in each instance."
             if !failures.isEmpty {
                 notice += "\n\nThese instances could not be updated:\n" + failures.joined(separator: "\n")
             }
@@ -185,6 +193,8 @@ final class AppState: ObservableObject {
     /// Editing or deleting a running clone would pull the bundle out from under its live
     /// process. Returns true when the action may proceed now; otherwise records it so the UI
     /// can offer to quit the instance first.
+    /// Legacy (1.1) wrappers run under the original app's identity, so this guard is inert for
+    /// them by design; migration replaces them safely.
     func guardNotRunning(_ action: BlockedAction) -> Bool {
         if InstanceRuntime.isRunning(action.instance) {
             blockedAction = action

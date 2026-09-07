@@ -37,4 +37,15 @@ final class AppInspectorTests: XCTestCase {
             XCTAssertEqual(error as? AppInspectorError, .missingInfoPlist)
         }
     }
+
+    func testInspectRefusesADuplexInstance() throws {
+        let app = try FixtureFactory.makeFakeApp(named: "Fake", bundleID: "com.x.fake", electron: true, in: tmp)
+        let target = try AppInspector.inspect(app)
+        let spec = InstanceSpec(name: "Fake Work", slug: "fake-work", target: target)
+        let wrapperURL = try WrapperGenerator(launcherBinary: URL(fileURLWithPath: "/bin/ls"))
+            .generate(spec: spec, icon: .badge(.blue), outputDir: tmp.appendingPathComponent("wrappers"))
+        XCTAssertThrowsError(try AppInspector.inspect(wrapperURL)) { error in
+            XCTAssertEqual(error as? AppInspectorError, .alreadyInstance("Fake"))
+        }
+    }
 }

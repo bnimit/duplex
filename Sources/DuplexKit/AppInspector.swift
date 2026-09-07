@@ -20,6 +20,7 @@ public enum AppInspectorError: Error, Equatable, LocalizedError {
     case missingInfoPlist
     case missingKey(String)
     case notElectron(String)
+    case alreadyInstance(String)
 
     public var errorDescription: String? {
         switch self {
@@ -29,6 +30,8 @@ public enum AppInspectorError: Error, Equatable, LocalizedError {
             return "The app's Info.plist is missing \(key)."
         case .notElectron(let name):
             return "\(name) isn't an Electron-based app. Duplex's isolation technique (--user-data-dir) only works for Electron/Chromium apps like Claude, Slack, Discord, Signal, or VS Code."
+        case .alreadyInstance(let name):
+            return "\(name) is already a Duplex instance. Pick the original app instead."
         }
     }
 }
@@ -48,6 +51,7 @@ public enum AppInspector {
         let fallbackName = appURL.deletingPathExtension().lastPathComponent
         let name = plist["CFBundleName"] as? String ?? fallbackName
 
+        if plist[DuplexPlistKey.instanceSlug] != nil { throw AppInspectorError.alreadyInstance(name) }
         guard isElectronBased(appURL) else { throw AppInspectorError.notElectron(name) }
         guard let bundleID = plist["CFBundleIdentifier"] as? String else {
             throw AppInspectorError.missingKey("CFBundleIdentifier")

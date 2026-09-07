@@ -2,14 +2,14 @@ import AppKit
 import CoreServices
 
 public enum WrapperGeneratorError: Error, LocalizedError {
-    case codesignFailed(Int32)
+    case codesignFailed(Int32, String)
     case destinationOccupied(String)
     case unreadablePlist(String)
 
     public var errorDescription: String? {
         switch self {
-        case .codesignFailed(let status):
-            return "codesign failed with exit status \(status)."
+        case .codesignFailed(let status, let message):
+            return "codesign failed with exit status \(status): \(message)"
         case .destinationOccupied(let name):
             return "\(name).app already exists there and isn't this instance's wrapper, pick a different instance name."
         case .unreadablePlist(let path):
@@ -75,7 +75,6 @@ public struct WrapperGenerator {
     private func build(spec: InstanceSpec, icon: IconChoice, oldWrapper: URL?, at bundleURL: URL) throws {
         let fm = FileManager.default
         try BundleCloner.clone(spec.target.url, to: bundleURL)
-        BundleCloner.stripQuarantine(at: bundleURL)
         let contents = bundleURL.appendingPathComponent("Contents")
 
         let plistURL = contents.appendingPathComponent("Info.plist")
@@ -101,10 +100,14 @@ public struct WrapperGenerator {
         let resources = contents.appendingPathComponent("Resources")
         try fm.createDirectory(at: resources, withIntermediateDirectories: true)
         try writeIcon(icon, spec: spec, oldWrapper: oldWrapper, to: resources.appendingPathComponent(InstancePlist.iconFile))
+
+        // Last, so the copied launcher and icon are covered as well.
+        BundleCloner.stripQuarantine(at: bundleURL)
     }
 
     private func writeIcon(_ icon: IconChoice, spec: InstanceSpec, oldWrapper: URL?, to iconDestination: URL) throws {
         let fm = FileManager.default
+        if fm.fileExists(atPath: iconDestination.path) { try fm.removeItem(at: iconDestination) }
         switch icon {
         case .original:
             if let sourceIcns = originalIconURL(for: spec.target) {

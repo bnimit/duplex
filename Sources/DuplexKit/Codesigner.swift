@@ -8,11 +8,16 @@ public enum Codesigner {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
         p.arguments = ["--force", "-s", "-", url.path]
+        let stderrPipe = Pipe()
         p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
+        p.standardError = stderrPipe
         try p.run()
+        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
-        guard p.terminationStatus == 0 else { throw WrapperGeneratorError.codesignFailed(p.terminationStatus) }
+        guard p.terminationStatus == 0 else {
+            let message = String(decoding: stderrData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw WrapperGeneratorError.codesignFailed(p.terminationStatus, message)
+        }
     }
 
     /// "adhoc" for an ad-hoc signature, "signed" for any other valid signature, nil when the
