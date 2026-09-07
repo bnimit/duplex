@@ -99,4 +99,14 @@ final class EndToEndTests: XCTestCase {
         XCTAssertEqual(try plist(of: wrapper)[DuplexPlistKey.sourceVersion] as? String, "1.0 (100)", "unchanged")
         XCTAssertTrue(try recordedArgs().contains("--use-mock-keychain"))
     }
+
+    func testLauncherRebuildsCloneWhoseBinaryIsMissing() throws {
+        let (_, wrapper) = try makeWrapper()
+        let cloneBinary = wrapper.appendingPathComponent("Contents/MacOS/FakeTron")
+        try FileManager.default.removeItem(at: cloneBinary)
+
+        XCTAssertEqual(try runLauncher(in: wrapper, home: tmp.appendingPathComponent("home")), 0)
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: cloneBinary.path), "clone should have been rebuilt")
+        XCTAssertTrue(try recordedArgs().hasPrefix(cloneBinary.path), "the rebuilt clone's binary should have run")
+    }
 }
