@@ -7,10 +7,19 @@ final class WrapperGeneratorTests: XCTestCase {
     override func setUpWithError() throws { tmp = try FixtureFactory.tempDir(name) }
     override func tearDownWithError() throws { try? FileManager.default.removeItem(at: tmp) }
 
-    private func makeSpec() throws -> InstanceSpec {
+    private func makeSpec(helper: Bool = false, nativeExecutable: Bool = false,
+                          provisionProfile: Bool = false, iconName: String? = nil,
+                          documentTypes: Bool = false) throws -> InstanceSpec {
         let app = try FixtureFactory.makeFakeApp(
-            named: "Fake", bundleID: "com.x.fake", electron: true, schemes: ["fake"], in: tmp)
+            named: "Fake", bundleID: "com.x.fake", electron: true, schemes: ["fake"],
+            helper: helper, nativeExecutable: nativeExecutable, provisionProfile: provisionProfile,
+            iconName: iconName, documentTypes: documentTypes, in: tmp)
         return InstanceSpec(name: "Fake Work", slug: "fake-work", target: try AppInspector.inspect(app))
+    }
+
+    private func plist(of bundle: URL) throws -> [String: Any] {
+        let data = try Data(contentsOf: bundle.appendingPathComponent("Contents/Info.plist"))
+        return try PropertyListSerialization.propertyList(from: data, format: nil) as! [String: Any]
     }
 
     // /bin/ls is a real Mach-O so codesign of the wrapper succeeds in tests.
@@ -22,36 +31,90 @@ final class WrapperGeneratorTests: XCTestCase {
 
         XCTAssertEqual(wrapper.lastPathComponent, "Fake Work.app")
         let fm = FileManager.default
-        XCTAssertTrue(fm.fileExists(atPath: wrapper.appendingPathComponent("Contents/Info.plist").path))
         XCTAssertTrue(fm.fileExists(atPath: wrapper.appendingPathComponent("Contents/PkgInfo").path))
         XCTAssertTrue(fm.fileExists(atPath: wrapper.appendingPathComponent("Contents/Resources/icon.icns").path))
+        XCTAssertTrue(fm.isExecutableFile(atPath: wrapper.appendingPathComponent("Contents/MacOS/duplex-launcher").path))
+        // The clone carries the target's own binary and frameworks.
+        XCTAssertTrue(fm.isExecutableFile(atPath: wrapper.appendingPathComponent("Contents/MacOS/Fake").path))
+        XCTAssertTrue(fm.fileExists(atPath: wrapper.appendingPathComponent("Contents/Frameworks/Electron Framework.framework").path))
 
-        let exec = wrapper.appendingPathComponent("Contents/MacOS/duplex-launcher")
-        XCTAssertTrue(fm.isExecutableFile(atPath: exec.path))
-
-        let data = try Data(contentsOf: wrapper.appendingPathComponent("Contents/Info.plist"))
-        let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as! [String: Any]
+        let plist = try plist(of: wrapper)
         XCTAssertEqual(plist["CFBundleIdentifier"] as? String, "com.duplex.fake-work")
+        XCTAssertEqual(plist["CFBundleDisplayName"] as? String, "Fake Work")
+        XCTAssertEqual(plist["CFBundleName"] as? String, "Fake", "kept from the target")
+        XCTAssertEqual(plist["CFBundleExecutable"] as? String, "duplex-launcher")
         XCTAssertEqual(plist[DuplexPlistKey.instanceSlug] as? String, "fake-work")
+        XCTAssertEqual(plist[DuplexPlistKey.targetExecutable] as? String, "Fake")
+        XCTAssertEqual(plist[DuplexPlistKey.formatVersion] as? Int, 2)
+        XCTAssertEqual(plist[DuplexPlistKey.sourceVersion] as? String, "1.0 (100)")
+    }
+
+    func testTargetIsUntouched() throws {
+        let spec = try makeSpec(provisionProfile: true)
+        _ = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: tmp.appendingPathComponent("wrappers"))
+        let target = try plist(of: spec.target.url)
+        XCTAssertEqual(target["CFBundleIdentifier"] as? String, "com.x.fake")
+        XCTAssertNil(target[DuplexPlistKey.instanceSlug])
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: spec.target.url.appendingPathComponent("Contents/embedded.provisionprofile").path))
+    }
+
+    func testRemovesProvisionProfileAndQuarantine() throws {
+        let spec = try makeSpec(provisionProfile: true)
+        let value = "0083;00000000;Safari;"
+        XCTAssertEqual(setxattr(spec.target.url.path, "com.apple.quarantine", value, value.utf8.count, 0, 0), 0)
+        XCTAssertEqual(setxattr(spec.target.url.appendingPathComponent("Contents/MacOS/Fake").path,
+                                "com.apple.quarantine", value, value.utf8.count, 0, 0), 0)
+
+        let wrapper = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: tmp.appendingPathComponent("wrappers"))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: wrapper.appendingPathComponent("Contents/embedded.provisionprofile").path))
+        XCTAssertEqual(getxattr(wrapper.path, "com.apple.quarantine", nil, 0, 0, 0), -1)
+        XCTAssertEqual(getxattr(wrapper.appendingPathComponent("Contents/MacOS/Fake").path,
+                                "com.apple.quarantine", nil, 0, 0, 0), -1)
+    }
+
+    func testHelpersAndMachOExecutablesAreAdhocSigned() throws {
+        let spec = try makeSpec(helper: true, nativeExecutable: true)
+        let wrapper = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: tmp.appendingPathComponent("wrappers"))
+        XCTAssertEqual(Codesigner.signatureKind(wrapper.appendingPathComponent("Contents/Frameworks/Fake Helper.app")), "adhoc")
+        XCTAssertEqual(Codesigner.signatureKind(wrapper.appendingPathComponent("Contents/MacOS/Fake-native")), "adhoc")
+        XCTAssertEqual(Codesigner.signatureKind(wrapper.appendingPathComponent("Contents/MacOS/duplex-launcher")), "adhoc")
+        XCTAssertEqual(Codesigner.signatureKind(wrapper), "adhoc")
+        // The script main executable cannot carry an embedded Mach-O signature, but codesign
+        // ad-hoc-signs it anyway in a generic format: a loose, unsigned file directly in MacOS
+        // would otherwise fail bundle-level codesign validation.
+        XCTAssertEqual(Codesigner.signatureKind(wrapper.appendingPathComponent("Contents/MacOS/Fake")), "adhoc")
+    }
+
+    func testDropsIconNameAndDocumentTypesKeepsURLTypes() throws {
+        let spec = try makeSpec(iconName: "Fake", documentTypes: true)
+        let wrapper = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: tmp.appendingPathComponent("wrappers"))
+        let plist = try plist(of: wrapper)
+        XCTAssertNil(plist["CFBundleIconName"])
+        XCTAssertNil(plist["CFBundleDocumentTypes"])
+        XCTAssertEqual(plist["CFBundleIconFile"] as? String, "icon.icns")
+        let urlTypes = plist["CFBundleURLTypes"] as? [[String: Any]]
+        XCTAssertEqual(urlTypes?.first?["CFBundleURLSchemes"] as? [String], ["fake"])
     }
 
     func testWrapperIsCodesigned() throws {
         let out = tmp.appendingPathComponent("wrappers")
-        let wrapper = try generator.generate(spec: try makeSpec(), icon: .badge(.red), outputDir: out)
+        let wrapper = try generator.generate(spec: try makeSpec(helper: true), icon: .badge(.red), outputDir: out)
 
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        p.arguments = ["--verify", wrapper.path]
+        p.arguments = ["--verify", "--strict", wrapper.path]
         try p.run()
         p.waitUntilExit()
-        XCTAssertEqual(p.terminationStatus, 0, "wrapper should pass codesign --verify")
+        XCTAssertEqual(p.terminationStatus, 0, "clone should pass codesign --verify --strict")
     }
 
     func testRegenerateInPlace() throws {
         let out = tmp.appendingPathComponent("wrappers")
         let spec = try makeSpec()
         _ = try generator.generate(spec: spec, icon: .badge(.blue), outputDir: out)
-        // Same slug, new display name — simulates the Edit flow.
+        // Same slug, new display name: simulates the Edit flow.
         let renamed = InstanceSpec(name: "Fake Personal", slug: "fake-work", target: spec.target)
         let wrapper = try generator.generate(spec: renamed, icon: .badge(.green), outputDir: out)
         XCTAssertEqual(wrapper.lastPathComponent, "Fake Personal.app")
