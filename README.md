@@ -47,10 +47,11 @@ application: the original launches from the Dock while instances run, and login
 callbacks such as `claude://` are delivered to the instance you routed them to.
 
 Instances follow the original app's updates. On every launch the launcher
-compares the installed app's version with the one the clone was made from and,
-when they differ, rebuilds the clone before starting it. The app's own updater
-inside an instance cannot install anything (it refuses to replace an ad-hoc
-signed bundle), which is what keeps the clone consistent.
+compares the installed app's version with the one the clone was made from and
+rebuilds the clone before starting it when they differ, or when the clone's copy
+of the app binary is missing (for example after an interrupted rebuild). The
+app's own updater inside an instance cannot install anything (it refuses to
+replace an ad-hoc signed bundle), which is what keeps the clone consistent.
 
 Instances cannot use the original app's keychain entry, because macOS ties it
 to the vendor's signing identity. They therefore run with Chromium's
