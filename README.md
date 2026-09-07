@@ -43,8 +43,9 @@ Each instance Duplex creates is a clone of the target app, not a shortcut to it.
    single-instance lock, inside that folder.
 
 Because the running process lives inside the clone, macOS sees a separate
-application: the original launches from the Dock while instances run, and login
-callbacks such as `claude://` are delivered to the instance you routed them to.
+application: the original launches from the Dock while instances run, and a
+login callback such as `claude://` is delivered to the instance that started
+the sign-in rather than to whichever copy happens to be running.
 
 Instances follow the original app's updates. On every launch the launcher
 compares the installed app's version with the one the clone was made from and
@@ -91,12 +92,12 @@ Run `open dist/Duplex.app` to launch it.
    `/Applications` like any app. The clone starts with its own private data
    directory, so it opens to a fresh, logged-out state the first time. The
    original app keeps launching normally from the Dock while instances run.
-3. **Log in**: before logging in, use the instance's "Route Links Here" action
-   so that OAuth/deep-link callbacks (e.g. `claude://...`) come back to this
-   instance instead of the original app or another instance. Complete the
-   login in the instance's window, then hand the link routing back to the
-   original app (or whichever instance you'll use next) so future logins go
-   to the right place.
+3. **Log in**: sign in inside the instance's own window. Because each instance
+   is a separate application to macOS, the OAuth callback comes back to the
+   instance that started the sign-in, so no extra step is normally needed. If a
+   callback ever lands in the wrong copy, use that instance's "Route Links
+   Here" action to claim the link scheme, sign in again, and hand routing back
+   afterwards with "Route Links to Original App".
 
 ## Known Quirks
 
@@ -106,7 +107,7 @@ Run `open dist/Duplex.app` to launch it.
 | Target app uninstalled/moved | Launcher shows an alert (not a silent exit) |
 | Duplicate instance name | Refused at creation ("pick a different instance name"); the slug auto-suffix (`claude-work-2`) only applies when two *different* names collide after slugging |
 | Same instance launched twice | Target's single-instance lock (keyed on data dir) focuses the existing window, which is harmless |
-| Instance size in Finder | Finder and `du` report the app's full size, but the clone is copy-on-write and shares disk blocks with the original until the original updates; the next instance launch rebuilds the clone and the sharing resumes |
+| Instance size in Finder | Finder and `du` report the app's full size, but the clone is copy-on-write and shares disk blocks with the original. A Claude instance costs about 6 MB of real disk against the 834 MB Finder shows. The sharing resumes after each rebuild |
 | Permissions asked again after the original app updates | Rebuilding a clone re-signs it, and macOS ties permissions such as Desktop or microphone access to the signature, so an instance may ask again |
 | Editing or deleting a running instance | Duplex asks to quit the instance first, because the change replaces the bundle the app is running from |
 | Upgrading from Duplex 1.1 | Existing instances are rebuilt as clones on first launch (one-time notice). Profiles are kept, but because session storage changed you sign in again once per instance |
