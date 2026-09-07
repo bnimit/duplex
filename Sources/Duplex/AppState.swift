@@ -11,6 +11,13 @@ final class AppState: ObservableObject {
     /// True while a clone is being generated or an instance is being quit; the UI disables
     /// creation and editing and shows a progress indicator.
     @Published var isBusy = false
+    /// Backs `isBusy` with a count so overlapping busy operations (create, migration, quit)
+    /// don't clear the flag for each other when one finishes before the others.
+    private var busyCount = 0 {
+        didSet { isBusy = busyCount > 0 }
+    }
+    private func beginBusy() { busyCount += 1 }
+    private func endBusy() { busyCount -= 1 }
     /// One-time notice after 1.1 wrappers were upgraded to clones.
     @Published var migrationNotice: String?
     /// An edit or delete the user asked for while the instance was running.
@@ -103,8 +110,12 @@ final class AppState: ObservableObject {
             errorMessage = "\(existing.name) is running. Quit it before changing it."
             return false
         }
-        isBusy = true
-        defer { isBusy = false }
+        guard !isBusy else {
+            errorMessage = "Duplex is still working on another instance. Try again in a moment."
+            return false
+        }
+        beginBusy()
+        defer { endBusy() }
         do {
             guard let launcher = Self.launcherURL() else {
                 throw NSError(domain: "Duplex", code: 1, userInfo: [
@@ -128,8 +139,8 @@ final class AppState: ObservableObject {
     func migrateLegacyInstances() async {
         guard !isMigrating, let launcher = Self.launcherURL() else { return }
         isMigrating = true
-        isBusy = true
-        defer { isMigrating = false; isBusy = false }
+        beginBusy()
+        defer { isMigrating = false; endBusy() }
 
         let legacy = instances.filter { $0.isLegacy && !migrationFailed.contains($0.slug) }
         var migrated = 0
@@ -152,9 +163,12 @@ final class AppState: ObservableObject {
         refresh()
         if migrated > 0 {
             let noun = migrated == 1 ? "instance" : "instances"
-            migrationNotice = "Duplex updated \(migrated) \(noun) to the new format so each has its own identity. Because session storage changed, sign in again in each instance."
-        }
-        if !failures.isEmpty {
+            var notice = "Duplex updated \(migrated) \(noun) to the new format so each has its own identity. Because session storage changed, sign in again in each instance."
+            if !failures.isEmpty {
+                notice += "\n\nThese instances could not be updated:\n" + failures.joined(separator: "\n")
+            }
+            migrationNotice = notice
+        } else if !failures.isEmpty {
             errorMessage = "Some instances could not be updated:\n" + failures.joined(separator: "\n")
         }
     }
@@ -180,8 +194,8 @@ final class AppState: ObservableObject {
     }
 
     func quitAndContinue(_ action: BlockedAction) async -> Bool {
-        isBusy = true
-        defer { isBusy = false }
+        beginBusy()
+        defer { endBusy() }
         let quit = await InstanceRuntime.quit(action.instance)
         if !quit {
             errorMessage = "\(action.instance.name) did not quit. Quit it manually and try again."
