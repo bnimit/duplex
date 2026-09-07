@@ -5,9 +5,13 @@ import DuplexKit
 struct InstanceListView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var license: LicenseManager
+    @EnvironmentObject var updates: UpdateManager
     @State private var editorTarget: EditorTarget?
     @State private var deleteCandidate: Instance?
     @State private var searchText = ""
+    @State private var copiedCommand = false
+    /// Fixed for the life of the window: how this copy of Duplex was installed.
+    private let installMethod = InstallMethod.detect()
 
     enum EditorTarget: Identifiable {
         case new
@@ -55,6 +59,7 @@ struct InstanceListView: View {
                 .toolbar { toolbarItems }
                 .searchable(text: $searchText, prompt: "Search instances")
         }
+        .safeAreaInset(edge: .top, spacing: 0) { updateBanner }
         .safeAreaInset(edge: .bottom, spacing: 0) { statusBar }
         // Profile sizes are cached (walking large profiles per repaint is too
         // slow), so re-scan whenever the app comes back to the foreground:
@@ -315,12 +320,77 @@ struct InstanceListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Update banner
+
+    /// Shown only when a newer release exists and the user has not dismissed
+    /// that version. Duplex never installs anything itself, so the banner's job
+    /// is to give the one step that applies to how this copy was installed.
+    @ViewBuilder
+    private var updateBanner: some View {
+        if let update = updates.available {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(DuplexTheme.indigo)
+                    Text("Duplex \(update.version) is available")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    switch installMethod {
+                    case .homebrew:
+                        Text("Update with")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(DuplexConfig.upgradeCommand)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                        Button(copiedCommand ? "Copied" : "Copy") { copyUpgradeCommand() }
+                            .buttonStyle(.link)
+                            .font(.system(size: 11))
+                            .disabled(copiedCommand)
+                    case .direct:
+                        Button("Download \(update.version)\u{2026}") {
+                            NSWorkspace.shared.open(update.url)
+                        }
+                        .controlSize(.small)
+                    }
+                    Button { updates.dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Hide this until the next version")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(.bar)
+                Divider()
+            }
+        }
+    }
+
+    private func copyUpgradeCommand() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(DuplexConfig.upgradeCommand, forType: .string)
+        copiedCommand = true
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            copiedCommand = false
+        }
+    }
+
     // MARK: - Status bar
 
     private var statusBar: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: 6) {
+                Text("Duplex \(DuplexConfig.appVersion)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\u{00B7}")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
                 Circle()
                     .fill(license.isLicensed ? DuplexTheme.indigo : DuplexTheme.coral)
                     .frame(width: 7, height: 7)
