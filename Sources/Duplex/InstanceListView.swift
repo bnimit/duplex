@@ -92,6 +92,31 @@ struct InstanceListView: View {
         } message: {
             Text(state.errorMessage ?? "")
         }
+        .alert("\(state.blockedAction?.instance.name ?? "This instance") is running",
+               isPresented: Binding(get: { state.blockedAction != nil },
+                                    set: { if !$0 { state.blockedAction = nil } })) {
+            Button("Quit and Continue") {
+                guard let action = state.blockedAction else { return }
+                state.blockedAction = nil
+                Task {
+                    guard await state.quitAndContinue(action) else { return }
+                    switch action {
+                    case .edit(let i): editorTarget = .edit(i)
+                    case .delete(let i): deleteCandidate = i
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Changing or deleting an instance while it runs would pull the app out from under it. Duplex can quit it first.")
+        }
+        .alert("Instances updated", isPresented: Binding(
+            get: { state.migrationNotice != nil },
+            set: { if !$0 { state.migrationNotice = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(state.migrationNotice ?? "")
+        }
     }
 
     // MARK: - Toolbar
@@ -114,6 +139,7 @@ struct InstanceListView: View {
         .modifier(ProminentActionStyle())
         .keyboardShortcut("n")
         .help("Wrappers are saved to \(state.outputDir.path)")
+        .disabled(state.isBusy)
     }
 
     @ToolbarContentBuilder
@@ -203,6 +229,7 @@ struct InstanceListView: View {
                 .modifier(ProminentActionStyle())
                 .controlSize(.small)
                 .fixedSize()
+                .disabled(state.isBusy)
             actionsMenu(instance)
         }
         .padding(.vertical, 5)
@@ -236,15 +263,18 @@ struct InstanceListView: View {
 
     @ViewBuilder
     private func menuItems(_ instance: Instance) -> some View {
-        Button("Edit\u{2026}") { editorTarget = .edit(instance) }
-        Button("Launch Original App") { state.launchOriginal(instance) }
+        Button("Edit\u{2026}") {
+            if state.guardNotRunning(.edit(instance)) { editorTarget = .edit(instance) }
+        }
         Button("Reveal Data Folder") { state.revealData(instance) }
         if !instance.urlSchemes.isEmpty {
             Button("Route Links Here") { state.routeLinks(to: instance) }
             Button("Route Links to Original App") { state.routeLinksToOriginal(instance) }
         }
         Divider()
-        Button("Delete\u{2026}", role: .destructive) { deleteCandidate = instance }
+        Button("Delete\u{2026}", role: .destructive) {
+            if state.guardNotRunning(.delete(instance)) { deleteCandidate = instance }
+        }
     }
 
     // MARK: - Empty / no-match states
@@ -298,6 +328,10 @@ struct InstanceListView: View {
                         .buttonStyle(.link).font(.caption)
                 }
                 Spacer()
+                if state.isBusy {
+                    ProgressView().controlSize(.small)
+                    Text("Working\u{2026}").font(.caption).foregroundStyle(.secondary)
+                }
                 Text(state.outputDir.path)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.tertiary)
