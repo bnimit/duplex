@@ -23,7 +23,7 @@ cask "duplex" do
   ]
 
   caveats <<~EOS
-    The first instance is free. A $5 license unlocks unlimited instances:
+    The first instance is free. A $9 license unlocks unlimited instances:
     https://aetrixfoundry.com/
   EOS
 end
