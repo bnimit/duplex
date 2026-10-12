@@ -69,6 +69,41 @@ final class EndToEndTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: expectedDataDir), "launcher must create the data dir")
     }
 
+    func testLauncherGivesCodexItsOwnCodexHome() throws {
+        let codex = try FixtureFactory.makeFakeApp(
+            // Never the real com.openai.codex: LaunchServices would resolve the installed Codex,
+            // and the launcher would rebuild from it and run it. The bundled codex-cli is what
+            // marks this fake as Codex.
+            named: "Codex", bundleID: "com.duplex-tests.codex", electron: false, renamedElectron: true, in: tmp)
+        let spec = InstanceSpec(name: "Codex Work", slug: "codex-work", target: try AppInspector.inspect(codex))
+        let wrapper = try WrapperGenerator(launcherBinary: try builtLauncherURL())
+            .generate(spec: spec, icon: .badge(.green), outputDir: tmp.appendingPathComponent("wrappers"))
+        let fakeHome = tmp.appendingPathComponent("home")
+        XCTAssertEqual(try runLauncher(in: wrapper, home: fakeHome), 0)
+
+        let codexHome = fakeHome.path + "/Library/Application Support/Duplex/codex-work/codex-home"
+        let env = try String(contentsOf: tmp.appendingPathComponent("wrappers/env.txt"), encoding: .utf8)
+        XCTAssertEqual(env.trimmingCharacters(in: .newlines), "CODEX_HOME=\(codexHome)")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: codexHome), "launcher must create CODEX_HOME")
+    }
+
+    func testLauncherLeavesCodexHomeAloneForOtherApps() throws {
+        let (_, wrapper) = try makeWrapper()
+        var env = ProcessInfo.processInfo.environment
+        env.removeValue(forKey: "CODEX_HOME")
+        let fakeHome = tmp.appendingPathComponent("home")
+        try FileManager.default.createDirectory(at: fakeHome, withIntermediateDirectories: true)
+        env["HOME"] = fakeHome.path
+        let p = Process()
+        p.executableURL = wrapper.appendingPathComponent("Contents/MacOS/duplex-launcher")
+        p.environment = env
+        try p.run()
+        p.waitUntilExit()
+        XCTAssertEqual(p.terminationStatus, 0)
+        let recorded = try String(contentsOf: tmp.appendingPathComponent("wrappers/env.txt"), encoding: .utf8)
+        XCTAssertEqual(recorded.trimmingCharacters(in: .newlines), "CODEX_HOME=")
+    }
+
     func testLauncherRegeneratesCloneWhenTargetVersionChanges() throws {
         let (fakeApp, wrapper) = try makeWrapper()
         XCTAssertEqual(try plist(of: wrapper)[DuplexPlistKey.sourceVersion] as? String, "1.0 (100)")

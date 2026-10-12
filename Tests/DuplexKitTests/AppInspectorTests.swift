@@ -11,6 +11,28 @@ final class AppInspectorTests: XCTestCase {
         XCTAssertTrue(AppInspector.isElectronBased(app))
     }
 
+    func testDetectsElectronAppWithRenamedFramework() throws {
+        let app = try FixtureFactory.makeFakeApp(
+            named: "Codex", bundleID: "com.x.codex", electron: false, renamedElectron: true, in: tmp)
+        XCTAssertTrue(AppInspector.isElectronBased(app))
+        XCTAssertEqual(try AppInspector.inspect(app).bundleID, "com.x.codex")
+    }
+
+    func testAsarAloneIsNotElectron() throws {
+        let app = try FixtureFactory.makeFakeApp(named: "Odd", bundleID: "com.x.odd", electron: false, in: tmp)
+        let resources = app.appendingPathComponent("Contents/Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        try Data().write(to: resources.appendingPathComponent("app.asar"))
+        XCTAssertFalse(AppInspector.isElectronBased(app))
+    }
+
+    func testInspectDropsSystemURLSchemes() throws {
+        let app = try FixtureFactory.makeFakeApp(
+            named: "Codex", bundleID: "com.x.codex", electron: false, renamedElectron: true,
+            schemes: ["codex", "http", "HTTPS"], in: tmp)
+        XCTAssertEqual(try AppInspector.inspect(app).urlSchemes, ["codex"])
+    }
+
     func testRejectsNonElectronApp() throws {
         let app = try FixtureFactory.makeFakeApp(named: "Plain", bundleID: "com.x.plain", electron: false, in: tmp)
         XCTAssertFalse(AppInspector.isElectronBased(app))

@@ -103,6 +103,20 @@ if execURL.lastPathComponent == InstancePlist.launcherExecutable {
     fail("This instance points at another Duplex instance instead of the original app. Delete it and create it again from the original app.")
 }
 
+// Apps that keep their login outside the profile get a private folder of their own too.
+// Each one must exist before the app starts, or the app falls back to the shared default.
+let extraEnvironment = LauncherLogic.extraEnvironment(
+    targetBundleID: config.targetBundleID, targetURL: appURL, dataDir: dataDir,
+    fileExists: { FileManager.default.fileExists(atPath: $0) })
+for (key, path) in extraEnvironment {
+    do {
+        try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+    } catch {
+        fail("Could not create the instance folder at \(path).")
+    }
+    setenv(key, path, 1)
+}
+
 let args = LauncherLogic.execArguments(targetExecutable: execURL.path, dataDir: dataDir)
 var cargs: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
 cargs.append(nil)

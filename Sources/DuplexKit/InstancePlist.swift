@@ -36,14 +36,31 @@ public enum InstancePlist {
 
     /// Changes only identity, icon, executable and the Duplex bookkeeping keys. CFBundleName
     /// stays (Electron derives "<CFBundleName> Helper.app" from it) and so does
-    /// ElectronAsarIntegrity.
-    public static func patch(_ original: [String: Any], spec: InstanceSpec) -> [String: Any] {
+    /// ElectronAsarIntegrity. keepsAssetIcon keeps the app's own CFBundleIconName, for an
+    /// instance showing the original icon: macOS then draws the same Assets.car icon as the
+    /// original, including layered icons that a flat icon.icns cannot reproduce.
+    public static func patch(_ original: [String: Any], spec: InstanceSpec,
+                             keepsAssetIcon: Bool = false) -> [String: Any] {
         var plist = original
         plist["CFBundleIdentifier"] = DuplexPlistKey.bundleIDPrefix + spec.slug
         plist["CFBundleDisplayName"] = spec.name
         plist["CFBundleExecutable"] = launcherExecutable
         plist["CFBundleIconFile"] = iconFile
-        for key in removedKeys { plist.removeValue(forKey: key) }
+        for key in removedKeys where !(keepsAssetIcon && key == "CFBundleIconName") {
+            plist.removeValue(forKey: key)
+        }
+        // Keep the app's own schemes (OAuth callbacks need them) but never system ones: a
+        // clone of Codex would otherwise register for http and https and show up as a browser.
+        if let urlTypes = original["CFBundleURLTypes"] as? [[String: Any]] {
+            let kept: [[String: Any]] = urlTypes.compactMap { entry in
+                let schemes = URLSchemeRouter.routable(entry["CFBundleURLSchemes"] as? [String] ?? [])
+                guard !schemes.isEmpty else { return nil }
+                var entry = entry
+                entry["CFBundleURLSchemes"] = schemes
+                return entry
+            }
+            plist["CFBundleURLTypes"] = kept.isEmpty ? nil : kept
+        }
         plist[DuplexPlistKey.targetBundleID] = spec.target.bundleID
         plist[DuplexPlistKey.targetPath] = spec.target.url.path
         plist[DuplexPlistKey.targetExecutable] = spec.target.executable

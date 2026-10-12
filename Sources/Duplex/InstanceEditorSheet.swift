@@ -16,6 +16,9 @@ struct InstanceEditorSheet: View {
 
     @State private var appURL: URL?
     @State private var name: String = ""
+    /// The name last filled in from the picked app, so picking another app can replace it
+    /// without overwriting a name the user typed.
+    @State private var suggestedName: String?
     @State private var badgeColor: BadgeColor = .blue
     // New instances default to an exact copy of the target's icon; the edit flow overrides
     // this to `.keep` in `onAppear` so regenerating doesn't silently change the icon.
@@ -134,9 +137,7 @@ struct InstanceEditorSheet: View {
                 iconMode = .keep
             } else if let prefillApp {
                 appURL = prefillApp
-                if name.isEmpty {
-                    name = prefillApp.deletingPathExtension().lastPathComponent + " 2"
-                }
+                suggestName(for: prefillApp)
             }
         }
     }
@@ -164,6 +165,13 @@ struct InstanceEditorSheet: View {
         }
     }
 
+    private func suggestName(for app: URL) {
+        guard name.isEmpty || name == suggestedName else { return }
+        let suggestion = app.deletingPathExtension().lastPathComponent + " 2"
+        name = suggestion
+        suggestedName = suggestion
+    }
+
     private func pickApp() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.applicationBundle]
@@ -173,9 +181,7 @@ struct InstanceEditorSheet: View {
             if AppInspector.isElectronBased(url) {
                 appURL = url
                 validationError = nil
-                if name.isEmpty {
-                    name = url.deletingPathExtension().lastPathComponent + " 2"
-                }
+                suggestName(for: url)
             } else {
                 validationError = AppInspectorError.notElectron(url.deletingPathExtension().lastPathComponent)
                     .errorDescription
