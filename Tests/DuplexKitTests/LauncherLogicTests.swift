@@ -103,4 +103,12 @@ final class LauncherLogicTests: XCTestCase {
         XCTAssertFalse(LauncherLogic.needsResync(recorded: "1.0 (100)", installed: nil), "target plist unreadable: leave it")
         XCTAssertFalse(LauncherLogic.needsResync(recorded: nil, installed: nil))
     }
+
+    func testCodexGetsPrivateCodexHome() {
+        let dataDir = LauncherLogic.dataDir(slug: "codex-work", homePath: "/Users/u")
+        XCTAssertEqual(
+            LauncherLogic.extraEnvironment(targetBundleID: "com.openai.codex", dataDir: dataDir),
+            ["CODEX_HOME": "/Users/u/Library/Application Support/Duplex/codex-work/codex-home"])
+        XCTAssertEqual(LauncherLogic.extraEnvironment(targetBundleID: "com.anthropic.claudefordesktop", dataDir: dataDir), [:])
+    }
 }
