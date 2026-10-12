@@ -5,9 +5,11 @@ import DuplexKit
 enum FixtureFactory {
     /// Builds a minimal fake .app bundle. If electron: true, adds
     /// Contents/Frameworks/Electron Framework.framework/. If renamedElectron: true, adds
-    /// "<name> Framework.framework" and Resources/app.asar instead, the way Codex ships.
+    /// "<name> Framework.framework", Resources/app.asar and Resources/codex-cli instead, the
+    /// way Codex ships.
     /// The executable is a bash script that records "$0 $@" (its own path, then argv) to
-    /// <bundle-parent>/args.txt, so tests can see where it ran from and with which flags.
+    /// <bundle-parent>/args.txt, so tests can see where it ran from and with which flags, and
+    /// its CODEX_HOME to <bundle-parent>/env.txt.
     /// Optional extras mirror what real Electron apps ship: a helper app and a second Mach-O
     /// in MacOS (both copies of /bin/ls so codesign works), a provisioning profile, an
     /// Assets.car icon name, and document types.
@@ -60,6 +62,7 @@ enum FixtureFactory {
         }
 
         let script = "#!/bin/bash\necho \"$0 $@\" > \"$(dirname \"$0\")/../../../args.txt\"\n"
+            + "echo \"CODEX_HOME=$CODEX_HOME\" > \"$(dirname \"$0\")/../../../env.txt\"\n"
         let exec = macos.appendingPathComponent(name)
         try script.write(to: exec, atomically: true, encoding: .utf8)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exec.path)
@@ -80,6 +83,7 @@ enum FixtureFactory {
             let resources = contents.appendingPathComponent("Resources")
             try fm.createDirectory(at: resources, withIntermediateDirectories: true)
             try Data().write(to: resources.appendingPathComponent("app.asar"))
+            try fm.createDirectory(at: resources.appendingPathComponent("codex-cli"), withIntermediateDirectories: true)
         }
         if helper {
             let helperApp = contents.appendingPathComponent("Frameworks/\(name) Helper.app")

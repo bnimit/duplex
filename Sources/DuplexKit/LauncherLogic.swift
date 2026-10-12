@@ -54,13 +54,13 @@ public enum LauncherLogic {
     /// outside the Chromium profile. Codex's bundled app-server keeps settings and sign-in under
     /// CODEX_HOME (default ~/.codex) and names its keychain entry after that path, so without
     /// a private CODEX_HOME every Codex instance shares, and signs out, the original's account.
-    public static func extraEnvironment(targetBundleID: String, dataDir: URL) -> [String: String] {
-        switch targetBundleID {
-        case "com.openai.codex":
-            return ["CODEX_HOME": dataDir.deletingLastPathComponent().appendingPathComponent("codex-home").path]
-        default:
-            return [:]
-        }
+    /// Codex is recognized by its bundle ID or by the codex-cli it ships, so a renamed ID
+    /// cannot quietly bring the shared login back. Pure for testability.
+    public static func extraEnvironment(targetBundleID: String, targetURL: URL, dataDir: URL,
+                                        fileExists: (String) -> Bool) -> [String: String] {
+        let shipsCodexCLI = fileExists(targetURL.appendingPathComponent("Contents/Resources/codex-cli").path)
+        guard targetBundleID == "com.openai.codex" || shipsCodexCLI else { return [:] }
+        return ["CODEX_HOME": dataDir.deletingLastPathComponent().appendingPathComponent("codex-home").path]
     }
 
     /// Picks the target app bundle: LaunchServices resolution wins when it exists on disk,

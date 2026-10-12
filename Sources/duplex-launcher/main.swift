@@ -105,7 +105,10 @@ if execURL.lastPathComponent == InstancePlist.launcherExecutable {
 
 // Apps that keep their login outside the profile get a private folder of their own too.
 // Each one must exist before the app starts, or the app falls back to the shared default.
-for (key, path) in LauncherLogic.extraEnvironment(targetBundleID: config.targetBundleID, dataDir: dataDir) {
+let extraEnvironment = LauncherLogic.extraEnvironment(
+    targetBundleID: config.targetBundleID, targetURL: appURL, dataDir: dataDir,
+    fileExists: { FileManager.default.fileExists(atPath: $0) })
+for (key, path) in extraEnvironment {
     do {
         try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
     } catch {

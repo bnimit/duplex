@@ -44,6 +44,18 @@ public enum InstancePlist {
         plist["CFBundleExecutable"] = launcherExecutable
         plist["CFBundleIconFile"] = iconFile
         for key in removedKeys { plist.removeValue(forKey: key) }
+        // Keep the app's own schemes (OAuth callbacks need them) but never system ones: a
+        // clone of Codex would otherwise register for http and https and show up as a browser.
+        if let urlTypes = original["CFBundleURLTypes"] as? [[String: Any]] {
+            let kept: [[String: Any]] = urlTypes.compactMap { entry in
+                let schemes = URLSchemeRouter.routable(entry["CFBundleURLSchemes"] as? [String] ?? [])
+                guard !schemes.isEmpty else { return nil }
+                var entry = entry
+                entry["CFBundleURLSchemes"] = schemes
+                return entry
+            }
+            plist["CFBundleURLTypes"] = kept.isEmpty ? nil : kept
+        }
         plist[DuplexPlistKey.targetBundleID] = spec.target.bundleID
         plist[DuplexPlistKey.targetPath] = spec.target.url.path
         plist[DuplexPlistKey.targetExecutable] = spec.target.executable

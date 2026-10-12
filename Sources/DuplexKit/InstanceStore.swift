@@ -66,10 +66,12 @@ public enum InstanceStore {
         return instances.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    /// Measures the whole <slug> folder, not just <slug>/data, so per-app folders kept beside
+    /// the profile (a Codex instance's codex-home) count too.
     public static func dataSize(of instance: Instance) -> Int64 {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
-            at: instance.dataDir, includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
+            at: instance.dataDir.deletingLastPathComponent(), includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
             options: [], errorHandler: nil)
         else { return 0 }
         var total: Int64 = 0

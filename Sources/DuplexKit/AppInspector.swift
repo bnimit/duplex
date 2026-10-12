@@ -39,12 +39,18 @@ public enum AppInspectorError: Error, Equatable, LocalizedError {
 public enum AppInspector {
     /// Most Electron apps ship "Electron Framework.framework", but some rename it after the
     /// product (Codex ships "Codex Framework.framework"). Those still carry Electron's packaged
-    /// app archive, Resources/app.asar, so either marker counts.
+    /// app archive, Resources/app.asar, so a renamed "* Framework.framework" alongside app.asar
+    /// counts too. Requiring both keeps a stray app.asar from passing on its own.
     public static func isElectronBased(_ appURL: URL) -> Bool {
         let fm = FileManager.default
-        let fw = appURL.appendingPathComponent("Contents/Frameworks/Electron Framework.framework")
+        let frameworksDir = appURL.appendingPathComponent("Contents/Frameworks")
+        if fm.fileExists(atPath: frameworksDir.appendingPathComponent("Electron Framework.framework").path) {
+            return true
+        }
         let asar = appURL.appendingPathComponent("Contents/Resources/app.asar")
-        return fm.fileExists(atPath: fw.path) || fm.fileExists(atPath: asar.path)
+        guard fm.fileExists(atPath: asar.path) else { return false }
+        let frameworks = (try? fm.contentsOfDirectory(atPath: frameworksDir.path)) ?? []
+        return frameworks.contains { $0.hasSuffix(" Framework.framework") }
     }
 
     public static func inspect(_ appURL: URL) throws -> TargetApp {

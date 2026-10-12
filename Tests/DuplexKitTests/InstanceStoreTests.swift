@@ -41,6 +41,12 @@ final class InstanceStoreTests: XCTestCase {
 
         let instances = InstanceStore.scan(outputDir: tmp.appendingPathComponent("wrappers"), homePath: "/tmp/h")
         XCTAssertEqual(instances.map(\.urlSchemes), [["codex"]])
+
+        // The clone itself must not register for web links, or macOS lists it as a browser.
+        let data = try Data(contentsOf: instances[0].wrapperURL.appendingPathComponent("Contents/Info.plist"))
+        let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        let types = plist?["CFBundleURLTypes"] as? [[String: Any]] ?? []
+        XCTAssertEqual(types.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }, ["codex"])
     }
 
     func testDataSize() throws {
@@ -51,6 +57,12 @@ final class InstanceStoreTests: XCTestCase {
         try Data(count: 2048).write(to: inst.dataDir.appendingPathComponent("blob"))
         inst = InstanceStore.scan(outputDir: tmp.appendingPathComponent("wrappers"), homePath: tmp.path)[0]
         XCTAssertGreaterThanOrEqual(InstanceStore.dataSize(of: inst), 2048)
+
+        // Folders kept beside the profile, like a Codex instance's codex-home, count too.
+        let codexHome = inst.dataDir.deletingLastPathComponent().appendingPathComponent("codex-home")
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        try Data(count: 8192).write(to: codexHome.appendingPathComponent("sessions.sqlite"))
+        XCTAssertGreaterThanOrEqual(InstanceStore.dataSize(of: inst), 2048 + 8192)
     }
 
     func testDeleteWrapperOnly() throws {

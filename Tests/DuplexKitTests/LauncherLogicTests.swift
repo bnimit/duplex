@@ -106,9 +106,18 @@ final class LauncherLogicTests: XCTestCase {
 
     func testCodexGetsPrivateCodexHome() {
         let dataDir = LauncherLogic.dataDir(slug: "codex-work", homePath: "/Users/u")
-        XCTAssertEqual(
-            LauncherLogic.extraEnvironment(targetBundleID: "com.openai.codex", dataDir: dataDir),
-            ["CODEX_HOME": "/Users/u/Library/Application Support/Duplex/codex-work/codex-home"])
-        XCTAssertEqual(LauncherLogic.extraEnvironment(targetBundleID: "com.anthropic.claudefordesktop", dataDir: dataDir), [:])
+        let expected = ["CODEX_HOME": "/Users/u/Library/Application Support/Duplex/codex-work/codex-home"]
+        let app = URL(fileURLWithPath: "/Applications/Codex.app")
+        XCTAssertEqual(LauncherLogic.extraEnvironment(
+            targetBundleID: "com.openai.codex", targetURL: app, dataDir: dataDir, fileExists: { _ in false }),
+            expected)
+        XCTAssertEqual(LauncherLogic.extraEnvironment(
+            targetBundleID: "com.openai.renamed", targetURL: app, dataDir: dataDir,
+            fileExists: { $0 == "/Applications/Codex.app/Contents/Resources/codex-cli" }),
+            expected, "recognized by the codex-cli it ships even if the ID changes")
+        XCTAssertEqual(LauncherLogic.extraEnvironment(
+            targetBundleID: "com.anthropic.claudefordesktop", targetURL: URL(fileURLWithPath: "/Applications/Claude.app"),
+            dataDir: dataDir, fileExists: { _ in false }),
+            [:])
     }
 }

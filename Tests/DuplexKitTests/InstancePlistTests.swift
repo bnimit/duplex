@@ -50,6 +50,24 @@ final class InstancePlistTests: XCTestCase {
         XCTAssertNil(p["UTExportedTypeDeclarations"])
     }
 
+    func testDropsSystemURLSchemesButKeepsTheAppsOwn() {
+        var codex = original
+        codex["CFBundleURLTypes"] = [
+            ["CFBundleURLName": "ChatGPT", "CFBundleURLSchemes": ["codex", "http", "https"]],
+            ["CFBundleURLName": "Web", "CFBundleURLSchemes": ["HTTPS"]],
+        ]
+        let types = InstancePlist.patch(codex, spec: spec)["CFBundleURLTypes"] as? [[String: Any]]
+        XCTAssertEqual(types?.count, 1, "an entry left with no schemes is dropped")
+        XCTAssertEqual(types?.first?["CFBundleURLSchemes"] as? [String], ["codex"])
+        XCTAssertEqual(types?.first?["CFBundleURLName"] as? String, "ChatGPT")
+    }
+
+    func testRemovesURLTypesWhenOnlySystemSchemesRemain() {
+        var web = original
+        web["CFBundleURLTypes"] = [["CFBundleURLName": "Web", "CFBundleURLSchemes": ["http", "https"]]]
+        XCTAssertNil(InstancePlist.patch(web, spec: spec)["CFBundleURLTypes"])
+    }
+
     func testAddsDuplexKeys() {
         let p = InstancePlist.patch(original, spec: spec)
         XCTAssertEqual(p[DuplexPlistKey.targetBundleID] as? String, "com.x.fake")
