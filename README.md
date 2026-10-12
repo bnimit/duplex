@@ -64,7 +64,8 @@ uses on Linux without a keyring. The original app is unaffected.
 
 - macOS 13.0 or later
 - Target apps must be Electron/Chromium-based (Duplex checks for
-  `Contents/Frameworks/Electron Framework.framework` and refuses anything
+  `Contents/Frameworks/Electron Framework.framework` or, for apps that rename
+  that framework such as Codex, `Contents/Resources/app.asar`, and refuses anything
   else, since `--user-data-dir` is a Chromium/Electron switch with no
   equivalent for native apps)
 
@@ -118,6 +119,7 @@ Run `open dist/Duplex.app` to launch it.
 | Preferences (`NSUserDefaults`) shared across instances | Accepted: Electron apps keep state in the profile dir, not in plists |
 | Menu-bar app name | Electron apps draw their own menu-bar title, so it may still read the original app's name while the Dock shows the instance name |
 | Stale instance icon after target update | Edit → regenerate refreshes the icon |
+| Codex instances | Codex keeps its sign-in and settings under `CODEX_HOME` rather than in the Chromium profile, so each Codex instance gets its own `~/Library/Application Support/Duplex/<slug>/codex-home`. An instance starts without the original's `config.toml`, MCP servers, or plugins, and stores its sign-in in `auth.json` there |
 | Passkeys, hardware security keys, Microsoft work sign-in inside an instance | Not expected to work. Ad-hoc signing cannot carry the vendor's keychain access groups, so credential storage for those flows fails inside an instance. Ordinary email and Google sign-in are unaffected |
 
 ## License
