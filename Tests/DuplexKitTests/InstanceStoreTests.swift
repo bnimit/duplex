@@ -31,6 +31,18 @@ final class InstanceStoreTests: XCTestCase {
         XCTAssertEqual(inst.dataDir.path, "/tmp/h/Library/Application Support/Duplex/fake-work/data")
     }
 
+    func testCloneOfRenamedElectronAppNeverRoutesWebLinks() throws {
+        let app = try FixtureFactory.makeFakeApp(
+            named: "Codex", bundleID: "com.x.codex", electron: false, renamedElectron: true,
+            schemes: ["codex", "http", "https"], in: tmp)
+        let spec = InstanceSpec(name: "Codex Work", slug: "codex-work", target: try AppInspector.inspect(app))
+        _ = try WrapperGenerator(launcherBinary: URL(fileURLWithPath: "/bin/ls"))
+            .generate(spec: spec, icon: .badge(.blue), outputDir: tmp.appendingPathComponent("wrappers"))
+
+        let instances = InstanceStore.scan(outputDir: tmp.appendingPathComponent("wrappers"), homePath: "/tmp/h")
+        XCTAssertEqual(instances.map(\.urlSchemes), [["codex"]])
+    }
+
     func testDataSize() throws {
         try generateWrapper(named: "Fake Work", slug: "fake-work")
         var inst = InstanceStore.scan(outputDir: tmp.appendingPathComponent("wrappers"), homePath: tmp.path)[0]

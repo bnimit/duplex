@@ -11,6 +11,20 @@ final class AppInspectorTests: XCTestCase {
         XCTAssertTrue(AppInspector.isElectronBased(app))
     }
 
+    func testDetectsElectronAppWithRenamedFramework() throws {
+        let app = try FixtureFactory.makeFakeApp(
+            named: "Codex", bundleID: "com.x.codex", electron: false, renamedElectron: true, in: tmp)
+        XCTAssertTrue(AppInspector.isElectronBased(app))
+        XCTAssertEqual(try AppInspector.inspect(app).bundleID, "com.x.codex")
+    }
+
+    func testInspectDropsSystemURLSchemes() throws {
+        let app = try FixtureFactory.makeFakeApp(
+            named: "Codex", bundleID: "com.x.codex", electron: false, renamedElectron: true,
+            schemes: ["codex", "http", "HTTPS"], in: tmp)
+        XCTAssertEqual(try AppInspector.inspect(app).urlSchemes, ["codex"])
+    }
+
     func testRejectsNonElectronApp() throws {
         let app = try FixtureFactory.makeFakeApp(named: "Plain", bundleID: "com.x.plain", electron: false, in: tmp)
         XCTAssertFalse(AppInspector.isElectronBased(app))

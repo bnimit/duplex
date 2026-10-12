@@ -58,7 +58,7 @@ public enum InstanceStore {
             instances.append(Instance(
                 wrapperURL: bundle, name: name, slug: slug,
                 targetBundleID: targetBundleID, targetPath: targetPath,
-                urlSchemes: schemes,
+                urlSchemes: URLSchemeRouter.routable(schemes),
                 dataDir: LauncherLogic.dataDir(slug: slug, homePath: homePath),
                 formatVersion: plist[DuplexPlistKey.formatVersion] as? Int ?? 1,
                 sourceVersion: plist[DuplexPlistKey.sourceVersion] as? String))
