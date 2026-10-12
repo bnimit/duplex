@@ -81,7 +81,8 @@ public struct WrapperGenerator {
         guard let data = try? Data(contentsOf: plistURL),
               let original = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         else { throw WrapperGeneratorError.unreadablePlist(plistURL.path) }
-        let patched = InstancePlist.patch(original, spec: spec)
+        let patched = InstancePlist.patch(original, spec: spec,
+                                          keepsAssetIcon: keepsAssetIcon(icon, original: original, oldWrapper: oldWrapper))
         try PropertyListSerialization.data(fromPropertyList: patched, format: .xml, options: 0).write(to: plistURL)
 
         let pkgInfo = contents.appendingPathComponent("PkgInfo")
@@ -135,6 +136,24 @@ public struct WrapperGenerator {
                 let image = IconBadger.badged(icon, color: .blue)
                 try IconBadger.writeICNS(image, to: iconDestination)
             }
+        }
+    }
+
+    /// True when the instance should show the app's own Assets.car icon: for the original icon
+    /// when the app declares one, and when keeping an existing wrapper that already did.
+    private func keepsAssetIcon(_ icon: IconChoice, original: [String: Any], oldWrapper: URL?) -> Bool {
+        guard original["CFBundleIconName"] != nil else { return false }
+        switch icon {
+        case .original:
+            return true
+        case .keepExisting:
+            guard let oldWrapper,
+                  let data = try? Data(contentsOf: oldWrapper.appendingPathComponent("Contents/Info.plist")),
+                  let old = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+            else { return false }
+            return old["CFBundleIconName"] != nil
+        case .badge, .custom:
+            return false
         }
     }
 

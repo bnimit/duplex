@@ -237,6 +237,23 @@ final class WrapperGeneratorTests: XCTestCase {
         XCTAssertEqual(targetIcnsData, wrapperIcnsData)
     }
 
+    func testOriginalIconKeepsTheAppsAssetCatalogIcon() throws {
+        // Like Codex: a layered Assets.car icon that no flat icon.icns can reproduce.
+        let spec = try makeSpec(iconName: "Icon")
+        let out = tmp.appendingPathComponent("wrappers")
+        let wrapper = try generator.generate(spec: spec, icon: .original, outputDir: out)
+        XCTAssertEqual(try plist(of: wrapper)["CFBundleIconName"] as? String, "Icon")
+
+        // Regenerating (an update, or editing without touching the icon) keeps it.
+        let regenerated = try generator.generate(spec: spec, icon: .keepExisting, outputDir: out)
+        XCTAssertEqual(try plist(of: regenerated)["CFBundleIconName"] as? String, "Icon")
+
+        // Switching to a badge drops it so the badged icon.icns shows, and keeping that sticks.
+        let badged = try generator.generate(spec: spec, icon: .badge(.green), outputDir: out)
+        XCTAssertNil(try plist(of: badged)["CFBundleIconName"])
+        XCTAssertNil(try plist(of: try generator.generate(spec: spec, icon: .keepExisting, outputDir: out))["CFBundleIconName"])
+    }
+
     func testKeepExistingIconOverExistingWrapperWhenTargetShipsIconFile() throws {
         let spec = try makeSpec(shipsIconIcns: true)
         let out = tmp.appendingPathComponent("wrappers")
