@@ -7,8 +7,8 @@
 #   brew tap bnimit/tap
 #   brew install --cask duplex
 cask "duplex" do
-  version "1.2.1"
-  sha256 "b8d8d9572c6d3865e3b4c7a27131933fcd1cf344f59aafadde987418b1865723"
+  version "1.2.2"
+  sha256 "4d4f49b3168b16fc40e4f7c67fb7101d0cc5bcde8d18fdcfc9688ed2dce31237"
 
   url "https://github.com/bnimit/duplex/releases/download/v#{version}/Duplex-#{version}.zip"
   name "Duplex"
