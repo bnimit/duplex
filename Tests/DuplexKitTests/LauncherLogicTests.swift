@@ -156,6 +156,60 @@ final class LauncherLogicTests: XCTestCase {
         XCTAssertEqual(change("(100)", "(100)"), .unchanged)
     }
 
+    func testVersionChangeSuffixedVersionsOrderByBuild() {
+        XCTAssertEqual(change("2.0.0-beta.3 (230)", "1.9.0 (190)"), .downgrade, "recorded short will not parse")
+        XCTAssertEqual(change("1.4.2b (50)", "1.4.2 (49)"), .downgrade)
+        XCTAssertEqual(change("1.9.0 (190)", "2.0.0-beta.3 (230)"), .upgrade)
+        XCTAssertEqual(change("2.0-rc1 (7)", "2.0-rc2 (8)"), .upgrade, "both suffixed")
+        XCTAssertEqual(change("2.0-rc1 (7)", "2.0-rc2 (7)"), .indeterminate, "same build: cannot order")
+        XCTAssertEqual(change("2.0-rc1", "1.9"), .indeterminate, "no build number to fall back on")
+        XCTAssertEqual(change("2.0-rc1 (abc)", "1.9 (def)"), .indeterminate, "build is not numeric")
+    }
+
+    func testVersionChangeBuildDecidesWhenShortVersionsAreNumericallyEqual() {
+        XCTAssertEqual(change("1.2 (5)", "1.2.0 (3)"), .downgrade)
+        XCTAssertEqual(change("1.2.0 (3)", "1.2 (5)"), .upgrade)
+    }
+
+    func testAppVersionEqualityAgreesWithOrdering() {
+        XCTAssertEqual(AppVersion("1.2 (1)"), AppVersion("1.2.0 (1)"))
+        XCTAssertFalse(AppVersion("1.2 (1)")! < AppVersion("1.2.0 (1)")!)
+        XCTAssertNotEqual(AppVersion("1.2 (1)"), AppVersion("1.2.0 (2)"))
+    }
+
+    // MARK: launch action
+
+    private func action(_ change: LauncherLogic.VersionChange, missing: Bool = false,
+                        acknowledged: Bool = false) -> LauncherLogic.LaunchAction {
+        LauncherLogic.action(change: change, binaryMissing: missing, acknowledged: acknowledged)
+    }
+
+    func testActionDowngradePromptsUntilAcknowledged() {
+        XCTAssertEqual(action(.downgrade), .promptDowngrade)
+        XCTAssertEqual(action(.downgrade, acknowledged: true), .run, "asked once per rollback")
+    }
+
+    func testActionDowngradeWithMissingBinaryAlwaysAsksBeforeRebuilding() {
+        XCTAssertEqual(action(.downgrade, missing: true), .promptRebuildFromOlder)
+        XCTAssertEqual(action(.downgrade, missing: true, acknowledged: true), .promptRebuildFromOlder,
+                       "an earlier Open Anyway says nothing about rebuilding backwards")
+    }
+
+    func testActionOtherChanges() {
+        XCTAssertEqual(action(.unchanged), .run)
+        XCTAssertEqual(action(.upgrade), .rebuild)
+        XCTAssertEqual(action(.indeterminate), .rebuild)
+        XCTAssertEqual(action(.unchanged, missing: true), .rebuild)
+        XCTAssertEqual(action(.upgrade, missing: true), .rebuild)
+    }
+
+    func testAcknowledgementKeyIsPerRollback() {
+        let a = LauncherLogic.acknowledgementKey(recorded: "2.0 (2)", installed: "1.0 (1)")
+        XCTAssertEqual(a, LauncherLogic.acknowledgementKey(recorded: "2.0 (2)", installed: "1.0 (1)"))
+        XCTAssertNotEqual(a, LauncherLogic.acknowledgementKey(recorded: "3.0 (3)", installed: "1.0 (1)"))
+        XCTAssertNotEqual(a, LauncherLogic.acknowledgementKey(recorded: "2.0 (2)", installed: "0.9 (9)"))
+    }
+
     func testAppVersionParsing() {
         XCTAssertEqual(AppVersion("1.0 (100)")?.short, [1, 0])
         XCTAssertEqual(AppVersion("1.0 (100)")?.build, [100])

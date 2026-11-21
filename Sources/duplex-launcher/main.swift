@@ -85,39 +85,67 @@ func cloneBinaryMissing(_ config: LauncherConfig, _ bundle: URL) -> Bool {
         atPath: cloneExecutableURL(config: config, bundle: bundle, appURL: appURL).path)
 }
 
+/// Remembers that the user chose to open past one specific rollback, so it is asked once, not
+/// on every launch. Lives beside resync.lock in the instance folder, not in the bundle, which
+/// a resync regenerates.
+let acknowledgementFile = dataDir.deletingLastPathComponent().appendingPathComponent("downgrade-ack")
+let acknowledgementKey = LauncherLogic.acknowledgementKey(
+    recorded: config.sourceVersion, installed: installedVersion)
+
+func downgradeAcknowledged() -> Bool {
+    (try? String(contentsOf: acknowledgementFile, encoding: .utf8)) == acknowledgementKey
+}
+
+func launchAction(_ config: LauncherConfig, _ bundle: URL) -> LauncherLogic.LaunchAction {
+    LauncherLogic.action(change: versionChange(config), binaryMissing: cloneBinaryMissing(config, bundle),
+                         acknowledged: downgradeAcknowledged())
+}
+
 /// True when the original has updated since this clone was made, or the clone is incomplete.
 /// A downgrade is deliberately not a rebuild: see the check below.
 func cloneNeedsRebuild(_ config: LauncherConfig, _ bundle: URL) -> Bool {
-    versionChange(config).rebuilds || cloneBinaryMissing(config, bundle)
+    let action = launchAction(config, bundle)
+    return action == .rebuild || action == .promptRebuildFromOlder
 }
 
 // The original app has been rolled back. Resyncing would replace this clone's binary with the
 // older one while keeping a profile the newer binary may already have migrated forward, which
-// Chromium can refuse to open — so say so instead of guessing. The clone still holds its own
-// copy of the newer app, so running it unchanged is the safe option and the default. A clone
-// that has lost its binary cannot be run at all, so that case still rebuilds.
-if versionChange(config) == .downgrade {
-    let recorded = config.sourceVersion ?? "an unknown version"
-    let installed = installedVersion ?? "an unknown version"
-    if cloneBinaryMissing(config, bundleURL) {
-        log("the original app went back from \(recorded) to \(installed), but this instance has lost its copy of the app, so it must be rebuilt from the older version.")
-    } else {
-        let message = """
-            \(config.name) was made from version \(recorded) of the original app, but the copy \
-            installed now is the older \(installed).
+// Chromium can refuse to open, so say so instead of guessing. The clone still holds its own
+// copy of the newer app, so running it unchanged is the safe option and the default, and the
+// answer is remembered for this rollback. A clone that has lost its binary cannot be run at
+// all, so there the only choice offered is rebuilding from the older app, or not opening.
+let recordedText = config.sourceVersion ?? "an unknown version"
+let installedText = installedVersion ?? "an unknown version"
+switch launchAction(config, bundleURL) {
+case .promptDowngrade:
+    let message = """
+        \(config.name) was made from version \(recordedText) of the original app, but the \
+        installed copy is the older \(installedText).
 
-            This instance's data was last used by the newer version, which may already have \
-            migrated it to a format the older app cannot read. Duplex has therefore left the \
-            instance alone rather than rebuilding it backwards: it still runs the newer app it \
-            was made from, and its data is untouched.
+        The newer version may already have upgraded this instance's data in a way the older app \
+        cannot read, so Duplex has not rebuilt it. It still runs the newer app it was made from, \
+        and its data is untouched.
 
-            Open it anyway, or quit and either reinstall the newer app, or delete this \
-            instance's data in Duplex and sign in again on the older one.
-            """
-        guard confirm(message, default: "Open Anyway", other: "Quit", fallback: true) else {
-            exit(0)
-        }
+        To stop this message, reinstall the newer app.
+        """
+    guard confirm(message, default: "Open Anyway", other: "Don't Open", fallback: true) else {
+        exit(0)
     }
+    try? acknowledgementKey.write(to: acknowledgementFile, atomically: true, encoding: .utf8)
+case .promptRebuildFromOlder:
+    let message = """
+        \(config.name) was made from version \(recordedText) of the original app, but the \
+        installed copy is the older \(installedText), and this instance has lost its own copy \
+        of the app.
+
+        The only way to open it is to rebuild it from the older version. If the newer version \
+        already upgraded this instance's data, the older app may not be able to read it.
+        """
+    guard !confirm(message, default: "Don't Open", other: "Rebuild Anyway", fallback: false) else {
+        exit(0)
+    }
+case .run, .rebuild:
+    break
 }
 
 // Rebuild the clone in place before running it when the original has updated or the clone is
