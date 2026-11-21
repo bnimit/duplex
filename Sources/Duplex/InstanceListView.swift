@@ -232,6 +232,10 @@ struct InstanceListView: View {
                     Text("Rebuilds on next launch (app updated)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
+                } else if state.isDowngraded(instance) {
+                    Text("The original app is older than this instance")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer()

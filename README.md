@@ -113,6 +113,7 @@ Run `open dist/Duplex.app` to launch it.
 | Permissions asked again after the original app updates | Rebuilding a clone re-signs it, and macOS ties permissions such as Desktop or microphone access to the signature, so an instance may ask again |
 | Editing or deleting a running instance | Duplex asks to quit the instance first, because the change replaces the bundle the app is running from |
 | Upgrading from Duplex 1.1 | Existing instances are rebuilt as clones on first launch (one-time notice). Profiles are kept, but because session storage changed you sign in again once per instance |
+| Original app rolled back to an older version | Version numbers are compared numerically, not as text, so Duplex can tell a rollback from an update. It does not resync the instance backwards: the instance keeps the newer app it was cloned from, and its first launch after the rollback asks whether to open it anyway, because an older binary can refuse a profile the newer one has already migrated. Reinstall the newer app, or delete the instance's data and sign in again on the older one |
 | Update prompts inside an instance | The app's own updater cannot install into a clone. Update the original app; the instance follows on its next launch |
 | Mac App Store builds of apps | Not supported: their receipt validation rejects a changed bundle identifier |
 | Delete instance | Confirm dialog; optional deletion of data folder |

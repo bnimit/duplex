@@ -96,12 +96,77 @@ final class LauncherLogicTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    func testNeedsResync() {
-        XCTAssertTrue(LauncherLogic.needsResync(recorded: "1.0 (100)", installed: "1.1 (101)"))
-        XCTAssertFalse(LauncherLogic.needsResync(recorded: "1.0 (100)", installed: "1.0 (100)"))
-        XCTAssertFalse(LauncherLogic.needsResync(recorded: nil, installed: "1.0 (100)"), "legacy wrapper: nothing recorded")
-        XCTAssertFalse(LauncherLogic.needsResync(recorded: "1.0 (100)", installed: nil), "target plist unreadable: leave it")
-        XCTAssertFalse(LauncherLogic.needsResync(recorded: nil, installed: nil))
+    private func change(_ recorded: String?, _ installed: String?) -> LauncherLogic.VersionChange {
+        LauncherLogic.versionChange(recorded: recorded, installed: installed)
+    }
+
+    func testVersionChangeUnchanged() {
+        XCTAssertEqual(change("1.0 (100)", "1.0 (100)"), .unchanged)
+        XCTAssertEqual(change(nil, "1.0 (100)"), .unchanged, "legacy wrapper: nothing recorded")
+        XCTAssertEqual(change("1.0 (100)", nil), .unchanged, "target plist unreadable: leave it")
+        XCTAssertEqual(change(nil, nil), .unchanged)
+        XCTAssertFalse(LauncherLogic.VersionChange.unchanged.rebuilds)
+    }
+
+    func testVersionChangeUpgrade() {
+        XCTAssertEqual(change("1.0 (100)", "1.1 (101)"), .upgrade)
+        XCTAssertEqual(change("1.0 (100)", "1.0 (101)"), .upgrade, "build alone moved forward")
+        XCTAssertEqual(change("1.2.9 (1)", "1.10.0 (1)"), .upgrade, "numeric, not alphabetical")
+        XCTAssertEqual(change("5.11492.5 (5.11492.5)", "5.11493.1 (5.11493.1)"), .upgrade)
+        XCTAssertEqual(change("1.2 (1)", "1.2.1 (1)"), .upgrade, "a deeper component appeared")
+        XCTAssertTrue(LauncherLogic.VersionChange.upgrade.rebuilds)
+    }
+
+    func testVersionChangeDowngrade() {
+        XCTAssertEqual(change("1.1 (101)", "1.0 (100)"), .downgrade)
+        XCTAssertEqual(change("1.0 (101)", "1.0 (100)"), .downgrade, "build alone went back")
+        XCTAssertEqual(change("1.10.0 (1)", "1.2.9 (1)"), .downgrade, "numeric, not alphabetical")
+        XCTAssertEqual(change("26.1029.61003 (26.1029.61003)", "26.1028.1 (26.1028.1)"), .downgrade)
+        XCTAssertEqual(change("1.0.1 (101)", "1.0 (100)"), .downgrade)
+        XCTAssertFalse(LauncherLogic.VersionChange.downgrade.rebuilds,
+                       "a downgrade must never resync the clone backwards")
+    }
+
+    func testVersionChangeShortVersionOutranksBuild() {
+        XCTAssertEqual(change("1.0 (999)", "1.1 (1)"), .upgrade,
+                       "CFBundleShortVersionString decides; the build is only a tiebreaker")
+        XCTAssertEqual(change("1.1 (1)", "1.0 (999)"), .downgrade)
+    }
+
+    func testVersionChangeUnparseableFallsBackToRebuilding() {
+        XCTAssertEqual(change("1.0-beta (100)", "1.0 (100)"), .indeterminate, "recorded will not parse")
+        XCTAssertEqual(change("1.0 (100)", "2026.11.21-nightly (100)"), .indeterminate, "installed will not parse")
+        XCTAssertEqual(change("1.0 (abc)", "1.0 (abd)"), .indeterminate, "build will not parse")
+        XCTAssertEqual(change("", "1.0 (100)"), .indeterminate, "empty recorded version")
+        XCTAssertTrue(LauncherLogic.VersionChange.indeterminate.rebuilds,
+                      "an unorderable difference keeps the old rebuild-on-any-difference behavior")
+    }
+
+    func testVersionChangeDifferingComponentCounts() {
+        XCTAssertEqual(change("1.2 (1)", "1.2.0 (1)"), .indeterminate,
+                       "numerically equal, textually different: rebuild rather than guess")
+        XCTAssertEqual(change("1.2.0 (1)", "1.2 (1)"), .indeterminate)
+        XCTAssertEqual(change("1.2 (1.0)", "1.2.0 (1)"), .indeterminate)
+    }
+
+    func testVersionChangeBuildOnlyStrings() {
+        // InstancePlist.sourceVersion writes "(<build>)" when the app has no short version.
+        XCTAssertEqual(change("(100)", "(101)"), .upgrade)
+        XCTAssertEqual(change("(101)", "(100)"), .downgrade)
+        XCTAssertEqual(change("(100)", "(100)"), .unchanged)
+    }
+
+    func testAppVersionParsing() {
+        XCTAssertEqual(AppVersion("1.0 (100)")?.short, [1, 0])
+        XCTAssertEqual(AppVersion("1.0 (100)")?.build, [100])
+        XCTAssertEqual(AppVersion("5.11492.5")?.short, [5, 11492, 5])
+        XCTAssertEqual(AppVersion("5.11492.5")?.build, [])
+        XCTAssertEqual(AppVersion("(155)")?.short, [])
+        XCTAssertEqual(AppVersion("(155)")?.build, [155])
+        XCTAssertNil(AppVersion(""), "nothing to order")
+        XCTAssertNil(AppVersion("1.0.x"))
+        XCTAssertNil(AppVersion("1..0"))
+        XCTAssertNil(AppVersion("v1.0"))
     }
 
     func testCodexGetsPrivateCodexHome() {
