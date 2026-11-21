@@ -10,6 +10,22 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
+/// A two-button caution alert, rendered like `fail`'s. Returns true when the user picks the
+/// default (left-most) button. `fallback` is used when the alert cannot be shown at all, so a
+/// launch without a window server still decides rather than hanging.
+func confirm(_ message: String, default defaultTitle: String, other otherTitle: String,
+             fallback: Bool) -> Bool {
+    var response: CFOptionFlags = 0
+    let status = CFUserNotificationDisplayAlert(
+        0, kCFUserNotificationCautionAlertLevel,
+        nil, nil, nil,
+        "Duplex" as CFString, message as CFString,
+        defaultTitle as CFString, otherTitle as CFString, nil,
+        &response)
+    guard status == 0 else { return fallback }
+    return response == CFOptionFlags(kCFUserNotificationDefaultResponse)
+}
+
 func log(_ message: String) {
     FileHandle.standardError.write(Data(("duplex-launcher: " + message + "\n").utf8))
 }
@@ -59,12 +75,77 @@ func cloneExecutableURL(config: LauncherConfig, bundle: URL, appURL: URL) -> URL
 
 let installedVersion = InstancePlist.sourceVersion(ofBundleAt: appURL)
 
-/// True when the original has updated since this clone was made, or the clone's own binary is
-/// missing (an interrupted resync left it half-swapped).
+func versionChange(_ config: LauncherConfig) -> LauncherLogic.VersionChange {
+    LauncherLogic.versionChange(recorded: config.sourceVersion, installed: installedVersion)
+}
+
+/// True when an interrupted resync left the clone without its own copy of the app binary.
+func cloneBinaryMissing(_ config: LauncherConfig, _ bundle: URL) -> Bool {
+    !FileManager.default.isExecutableFile(
+        atPath: cloneExecutableURL(config: config, bundle: bundle, appURL: appURL).path)
+}
+
+/// Remembers that the user chose to open past one specific rollback, so it is asked once, not
+/// on every launch. Lives beside resync.lock in the instance folder, not in the bundle, which
+/// a resync regenerates.
+let acknowledgementFile = dataDir.deletingLastPathComponent().appendingPathComponent("downgrade-ack")
+let acknowledgementKey = LauncherLogic.acknowledgementKey(
+    recorded: config.sourceVersion, installed: installedVersion)
+
+func downgradeAcknowledged() -> Bool {
+    (try? String(contentsOf: acknowledgementFile, encoding: .utf8)) == acknowledgementKey
+}
+
+func launchAction(_ config: LauncherConfig, _ bundle: URL) -> LauncherLogic.LaunchAction {
+    LauncherLogic.action(change: versionChange(config), binaryMissing: cloneBinaryMissing(config, bundle),
+                         acknowledged: downgradeAcknowledged())
+}
+
+/// True when the original has updated since this clone was made, or the clone is incomplete.
+/// A downgrade is deliberately not a rebuild: see the check below.
 func cloneNeedsRebuild(_ config: LauncherConfig, _ bundle: URL) -> Bool {
-    LauncherLogic.needsResync(recorded: config.sourceVersion, installed: installedVersion)
-        || !FileManager.default.isExecutableFile(
-            atPath: cloneExecutableURL(config: config, bundle: bundle, appURL: appURL).path)
+    let action = launchAction(config, bundle)
+    return action == .rebuild || action == .promptRebuildFromOlder
+}
+
+// The original app has been rolled back. Resyncing would replace this clone's binary with the
+// older one while keeping a profile the newer binary may already have migrated forward, which
+// Chromium can refuse to open, so say so instead of guessing. The clone still holds its own
+// copy of the newer app, so running it unchanged is the safe option and the default, and the
+// answer is remembered for this rollback. A clone that has lost its binary cannot be run at
+// all, so there the only choice offered is rebuilding from the older app, or not opening.
+let recordedText = config.sourceVersion ?? "an unknown version"
+let installedText = installedVersion ?? "an unknown version"
+switch launchAction(config, bundleURL) {
+case .promptDowngrade:
+    let message = """
+        \(config.name) was made from version \(recordedText) of the original app, but the \
+        installed copy is the older \(installedText).
+
+        The newer version may already have upgraded this instance's data in a way the older app \
+        cannot read, so Duplex has not rebuilt it. It still runs the newer app it was made from, \
+        and its data is untouched.
+
+        To stop this message, reinstall the newer app.
+        """
+    guard confirm(message, default: "Open Anyway", other: "Don't Open", fallback: true) else {
+        exit(0)
+    }
+    try? acknowledgementKey.write(to: acknowledgementFile, atomically: true, encoding: .utf8)
+case .promptRebuildFromOlder:
+    let message = """
+        \(config.name) was made from version \(recordedText) of the original app, but the \
+        installed copy is the older \(installedText), and this instance has lost its own copy \
+        of the app.
+
+        The only way to open it is to rebuild it from the older version. If the newer version \
+        already upgraded this instance's data, the older app may not be able to read it.
+        """
+    guard !confirm(message, default: "Don't Open", other: "Rebuild Anyway", fallback: false) else {
+        exit(0)
+    }
+case .run, .rebuild:
+    break
 }
 
 // Rebuild the clone in place before running it when the original has updated or the clone is

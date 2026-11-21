@@ -87,13 +87,20 @@ final class AppState: ObservableObject {
             fileExists: { FileManager.default.fileExists(atPath: $0) })
     }
 
-    /// True when the target app has updated since this instance's clone was made, so its next
-    /// launch will rebuild it in place. Reads one plist per call; acceptable for a list this size.
-    func needsRebuild(_ instance: Instance) -> Bool {
-        guard let appURL = targetURL(for: instance) else { return false }
-        return LauncherLogic.needsResync(
+    /// How the installed original compares with the version this instance was cloned from.
+    /// Reads one plist per call; acceptable for a list this size.
+    func versionChange(_ instance: Instance) -> LauncherLogic.VersionChange {
+        guard let appURL = targetURL(for: instance) else { return .unchanged }
+        return LauncherLogic.versionChange(
             recorded: instance.sourceVersion, installed: InstancePlist.sourceVersion(ofBundleAt: appURL))
     }
+
+    /// True when the next launch will rebuild this instance in place.
+    func needsRebuild(_ instance: Instance) -> Bool { versionChange(instance).rebuilds }
+
+    /// True when the original app is older than the version this instance was cloned from, so
+    /// its next launch asks before opening instead of resyncing backwards.
+    func isDowngraded(_ instance: Instance) -> Bool { versionChange(instance) == .downgrade }
 
     /// Generation clones and signs an app bundle: about two seconds, longer on the copy
     /// fallback, so it runs off the main actor.

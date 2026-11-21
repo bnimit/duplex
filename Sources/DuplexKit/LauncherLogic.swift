@@ -72,10 +72,146 @@ public enum LauncherLogic {
         return nil
     }
 
-    /// True only when both versions are known and differ. Unknown on either side means
-    /// "leave the clone alone".
-    public static func needsResync(recorded: String?, installed: String?) -> Bool {
-        guard let recorded, let installed else { return false }
-        return recorded != installed
+    /// How the installed original compares with the version a clone was built from.
+    public enum VersionChange: Equatable {
+        /// Identical, or unknown on either side: leave the clone alone.
+        case unchanged
+        /// The installed app is newer: rebuild the clone, so the vendor's own profile
+        /// migration runs against a matching binary.
+        case upgrade
+        /// The installed app is OLDER than the clone. Rebuilding would hand a profile the
+        /// clone's newer binary may already have migrated forward to an older binary, which
+        /// Chromium can refuse to open, so this is never resynced silently.
+        case downgrade
+        /// The two differ but cannot be ordered: a version string that will not parse, or
+        /// one that is numerically equal with different text ("1.2" against "1.2.0").
+        /// Rebuilt, which is what Duplex did for every difference before ordering existed.
+        case indeterminate
+
+        /// True when the clone should be rebuilt from the installed app.
+        public var rebuilds: Bool { self == .upgrade || self == .indeterminate }
+    }
+
+    /// What the launcher does before running an instance.
+    public enum LaunchAction: Equatable {
+        /// Run the clone as it is.
+        case run
+        /// Rebuild the clone from the installed original, then run it.
+        case rebuild
+        /// The original was rolled back and the clone still works: ask whether to open the
+        /// newer clone anyway. Skipped once the user has already said yes to this exact change.
+        case promptDowngrade
+        /// The original was rolled back and the clone has lost its binary, so the only way
+        /// forward is a rebuild from the older app: ask before doing it.
+        case promptRebuildFromOlder
+    }
+
+    /// Pure decision for the launcher. `acknowledged` is whether the user already chose to
+    /// open past this same downgrade (see `acknowledgementKey`).
+    public static func action(change: VersionChange, binaryMissing: Bool,
+                              acknowledged: Bool) -> LaunchAction {
+        if change == .downgrade {
+            if binaryMissing { return .promptRebuildFromOlder }
+            return acknowledged ? .run : .promptDowngrade
+        }
+        return change.rebuilds || binaryMissing ? .rebuild : .run
+    }
+
+    /// Identifies one specific rollback, so an "Open Anyway" answer is remembered for it and
+    /// a later, different version change asks again.
+    public static func acknowledgementKey(recorded: String?, installed: String?) -> String {
+        "\(recorded ?? "?") -> \(installed ?? "?")"
+    }
+
+    /// Orders two `InstancePlist.sourceVersion` strings ("<short> (<build>)"). Unknown on
+    /// either side means "leave the clone alone"; anything that will not parse falls back to
+    /// `.indeterminate` so a difference is never silently ignored.
+    public static func versionChange(recorded: String?, installed: String?) -> VersionChange {
+        guard let recorded, let installed else { return .unchanged }
+        if recorded == installed { return .unchanged }
+        guard let from = AppVersion(recorded), let to = AppVersion(installed) else {
+            // A suffixed short version ("2.0.0-beta.3", "1.4.2b") will not parse, but
+            // CFBundleVersion is usually a plain number, so order by that when both have one.
+            guard let fromBuild = AppVersion.buildComponents(of: recorded),
+                  let toBuild = AppVersion.buildComponents(of: installed),
+                  !fromBuild.isEmpty, !toBuild.isEmpty
+            else { return .indeterminate }
+            if AppVersion.less(fromBuild, toBuild) { return .upgrade }
+            if AppVersion.less(toBuild, fromBuild) { return .downgrade }
+            return .indeterminate
+        }
+        if from < to { return .upgrade }
+        if to < from { return .downgrade }
+        return .indeterminate
+    }
+}
+
+/// A target app's version, ordered numerically rather than as text: `CFBundleShortVersionString`
+/// first, `CFBundleVersion` only as a tiebreaker. The two are kept apart on purpose — comparing
+/// every number in "1.0 (100)" as one list would read "1.0.1 (101)" as a downgrade.
+struct AppVersion: Comparable {
+    let short: [Int]
+    let build: [Int]
+
+    /// Parses "<short> (<build>)", "<short>" or "(<build>)" as written by
+    /// `InstancePlist.sourceVersion(of:)`. nil when any component is not a plain number.
+    init?(_ text: String) {
+        let (shortText, buildText) = Self.split(text)
+        guard let short = Self.components(shortText), let build = Self.components(buildText),
+              !(short.isEmpty && build.isEmpty)
+        else { return nil }
+        self.short = short
+        self.build = build
+    }
+
+    /// Splits "<short> (<build>)" into its two texts; either may be empty.
+    private static func split(_ text: String) -> (short: String, build: String) {
+        var shortText = text.trimmingCharacters(in: .whitespaces)
+        var buildText = ""
+        if shortText.hasSuffix(")"), let open = shortText.lastIndex(of: "(") {
+            buildText = String(shortText[shortText.index(after: open)..<shortText.index(before: shortText.endIndex)])
+            shortText = String(shortText[shortText.startIndex..<open]).trimmingCharacters(in: .whitespaces)
+        }
+        return (shortText, buildText)
+    }
+
+    /// The numeric build components of a version string, or nil when the build is not plain
+    /// numbers. Independent of whether the short version parses.
+    static func buildComponents(of text: String) -> [Int]? {
+        components(split(text).build)
+    }
+
+    private static func components(_ text: String) -> [Int]? {
+        if text.isEmpty { return [] }
+        var result: [Int] = []
+        for part in text.split(separator: ".", omittingEmptySubsequences: false) {
+            guard !part.isEmpty, part.allSatisfy(\.isASCII), part.allSatisfy(\.isNumber),
+                  let value = Int(part)
+            else { return nil }
+            result.append(value)
+        }
+        return result
+    }
+
+    /// Equal when both parts are numerically equal, so "1.2" == "1.2.0" and `<` agrees.
+    static func == (lhs: AppVersion, rhs: AppVersion) -> Bool {
+        !less(lhs.short, rhs.short) && !less(rhs.short, lhs.short)
+            && !less(lhs.build, rhs.build) && !less(rhs.build, lhs.build)
+    }
+
+    static func < (lhs: AppVersion, rhs: AppVersion) -> Bool {
+        if less(lhs.short, rhs.short) { return true }
+        if less(rhs.short, lhs.short) { return false }
+        return less(lhs.build, rhs.build)
+    }
+
+    /// Component-by-component, treating a missing component as 0 so "1.2" equals "1.2.0".
+    static func less(_ lhs: [Int], _ rhs: [Int]) -> Bool {
+        for index in 0..<max(lhs.count, rhs.count) {
+            let left = index < lhs.count ? lhs[index] : 0
+            let right = index < rhs.count ? rhs[index] : 0
+            if left != right { return left < right }
+        }
+        return false
     }
 }
